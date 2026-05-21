@@ -1,0 +1,31 @@
+title = "SecureLLM Gateway gitleaks config"
+
+[[rules]]
+id = "openai-api-key"
+description = "OpenAI-style API key"
+regex = '''sk-[A-Za-z0-9_\-]{20,}'''
+keywords = ["sk-"]
+
+[[rules]]
+id = "aws-access-key"
+description = "AWS access key"
+regex = '''AKIA[0-9A-Z]{16}'''
+keywords = ["AKIA"]
+
+[[rules]]
+id = "jwt"
+description = "JWT-shaped token"
+regex = '''eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}'''
+keywords = ["eyJ"]
+
+[allowlist]
+description = "Allow documentation placeholders"
+regexes = [
+  '''sk-\.\.\.''',
+  '''replace-with-[a-z0-9\-]+'''
+]
+paths = [
+  '''node_modules/.*''',
+  '''dist/.*''',
+  '''tools/.*'''
+]

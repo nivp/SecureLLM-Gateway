@@ -1,0 +1,41 @@
+services:
+  api:
+    build: .
+    depends_on:
+      - mongo
+      - redis
+      - ollama
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      MONGODB_URI: mongodb://mongo:27017/securellm
+      REDIS_URL: redis://redis:6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-ollama}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://ollama:11434/v1}
+      OPENAI_MODEL_ALIASES: '${OPENAI_MODEL_ALIASES:-{"gpt-4o":"gpt-oss:20b","claude-3-5-sonnet":"gpt-oss:20b"}}'
+      PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:-replace-with-32-byte-secret}
+    ports:
+      - "3000:3000"
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+
+volumes:
+  mongo-data:
+  ollama-data:
