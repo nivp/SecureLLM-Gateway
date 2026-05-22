@@ -2,6 +2,7 @@ import type { Router } from "express";
 import { Router as createRouter } from "express";
 import { z } from "zod";
 import { config } from "../config.js";
+import { asyncHandler } from "../middleware/errors.js";
 import { AuditLogModel } from "../models/AuditLog.js";
 import { decryptValue } from "../security/piiCrypto.js";
 
@@ -13,7 +14,7 @@ const querySchema = z.object({
 
 export function auditRouter(): Router {
   const router = createRouter();
-  router.get("/v1/audit", async (req, res) => {
+  router.get("/v1/audit", asyncHandler(async (req, res) => {
     const parsed = querySchema.safeParse(req.query);
     if (!parsed.success) {
       res.status(400).json({ error: "invalid_query", details: parsed.error.flatten() });
@@ -34,6 +35,6 @@ export function auditRouter(): Router {
         }))
       }))
     });
-  });
+  }));
   return router;
 }

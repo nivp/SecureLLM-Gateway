@@ -3,10 +3,11 @@ import type { Router } from "express";
 import { Router as createRouter } from "express";
 import mongoose from "mongoose";
 import { providerReady } from "../config.js";
+import { asyncHandler } from "../middleware/errors.js";
 
 export function healthRouter(redis: Redis): Router {
   const router = createRouter();
-  router.get("/healthz", async (_req, res) => {
+  router.get("/healthz", asyncHandler(async (_req, res) => {
     let redisOk = false;
     try {
       redisOk = (await redis.ping()) === "PONG";
@@ -21,6 +22,6 @@ export function healthRouter(redis: Redis): Router {
       redis: redisOk,
       provider: providerOk
     });
-  });
+  }));
   return router;
 }

@@ -1,8 +1,9 @@
 import type { Redis } from "ioredis";
 import type { NextFunction, Request, Response } from "express";
+import { asyncHandler } from "./errors.js";
 
 export function rateLimitMiddleware(redis: Redis) {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  return asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     if (!req.auth) {
       res.status(401).json({ error: "missing_auth_context" });
       return;
@@ -30,5 +31,5 @@ export function rateLimitMiddleware(redis: Redis) {
     }
 
     next();
-  };
+  });
 }

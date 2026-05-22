@@ -1,9 +1,10 @@
 import type { NextFunction, Request, Response } from "express";
 import { sha256Json, writeAudit } from "../audit.js";
 import { detectPromptInjection } from "../security/injectionDetector.js";
+import { asyncHandler } from "./errors.js";
 
 export function promptInjectionMiddleware() {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  return asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const threats = detectPromptInjection(req.validatedChat?.messages ?? []);
     req.detectedThreats = threats;
     if (threats.length > 0) {
@@ -19,5 +20,5 @@ export function promptInjectionMiddleware() {
       return;
     }
     next();
-  };
+  });
 }

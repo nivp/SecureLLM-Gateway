@@ -2,9 +2,10 @@ import type { NextFunction, Request, Response } from "express";
 import { ApiKeyModel } from "../models/ApiKey.js";
 import { keyIdFor, verifyApiKey } from "../security/hash.js";
 import type { Role } from "../types.js";
+import { asyncHandler } from "./errors.js";
 
 export function requireAuth(requiredRole?: Role) {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  return asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const apiKey = req.header("x-api-key");
     if (!apiKey) {
       res.status(401).json({ error: "missing_api_key" });
@@ -28,5 +29,5 @@ export function requireAuth(requiredRole?: Role) {
       rateLimitPerMinute: keyRecord.rateLimitPerMinute
     };
     next();
-  };
+  });
 }

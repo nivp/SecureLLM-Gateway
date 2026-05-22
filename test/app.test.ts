@@ -57,6 +57,25 @@ describe("app routes", () => {
     await request(app).post("/v1/chat").send({ model: "gpt-4o", messages: [{ role: "user", content: "hi" }] }).expect(401);
   });
 
+  it("returns a structured 500 when async auth lookup fails", async () => {
+    vi.mocked(ApiKeyModel.findOne).mockReturnValue({
+      lean: vi.fn(async () => {
+        throw new Error("database unavailable");
+      })
+    } as never);
+    const app = createApp(redisMock() as never);
+
+    await request(app)
+      .post("/v1/chat")
+      .set("x-api-key", "client-key")
+      .send({ model: "gpt-4o", messages: [{ role: "user", content: "hi" }] })
+      .expect(500)
+      .expect((res) => {
+        expect(res.body.error).toBe("internal_error");
+        expect(res.body.correlationId).toBeDefined();
+      });
+  });
+
   it("blocks client access to audit", async () => {
     mockKey("client-key", "client");
     const app = createApp(redisMock() as never);

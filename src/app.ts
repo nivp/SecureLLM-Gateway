@@ -3,6 +3,7 @@ import express from "express";
 import type { Redis } from "ioredis";
 import { pinoHttp } from "pino-http";
 import { logger } from "./logger.js";
+import { errorHandler } from "./middleware/errors.js";
 import { requestContext } from "./middleware/requestContext.js";
 import { requireAuth } from "./middleware/auth.js";
 import { rateLimitMiddleware } from "./middleware/rateLimit.js";
@@ -34,6 +35,7 @@ export function createApp(redis: Redis): express.Express {
   app.use((_req, res) => {
     res.status(404).json({ error: "not_found" });
   });
+  app.use(errorHandler);
 
   return app;
 }

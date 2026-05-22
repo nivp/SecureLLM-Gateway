@@ -1,12 +1,13 @@
 import type { Router } from "express";
 import { Router as createRouter } from "express";
 import { sha256Json, writeAudit } from "../audit.js";
+import { asyncHandler } from "../middleware/errors.js";
 import { ProviderUnavailableError, createChatCompletion } from "../provider/openAiProvider.js";
 import { validateOutput } from "../security/outputValidator.js";
 
 export function chatRouter(): Router {
   const router = createRouter();
-  router.post("/v1/chat", async (req, res) => {
+  router.post("/v1/chat", asyncHandler(async (req, res) => {
     const startedAt = res.locals.startedAt as number;
     const requestHash = sha256Json({ ...req.validatedChat, messages: req.redactedMessages });
 
@@ -62,6 +63,6 @@ export function chatRouter(): Router {
       });
       res.status(statusCode).json({ error: statusCode === 503 ? "provider_unavailable" : "provider_error" });
     }
-  });
+  }));
   return router;
 }
