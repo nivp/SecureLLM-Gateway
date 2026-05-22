@@ -1,6 +1,8 @@
 import "dotenv/config";
 import { z } from "zod";
 
+const PLACEHOLDER_PII_KEYS = new Set(["replace-with-32-byte-secret", "local-demo-pii-encryption-key-32b"]);
+
 const envSchema = z.object({
   NODE_ENV: z.string().default("development"),
   PORT: z.coerce.number().int().positive().default(3000),
@@ -35,6 +37,10 @@ function parseAliases(raw: string | undefined): Record<string, string> {
 }
 
 const parsed = envSchema.parse(process.env);
+if (parsed.NODE_ENV === "production" && (!parsed.PII_ENCRYPTION_KEY || PLACEHOLDER_PII_KEYS.has(parsed.PII_ENCRYPTION_KEY))) {
+  throw new Error("PII_ENCRYPTION_KEY must be configured with a strong production secret");
+}
+
 const modelAliases = parseAliases(parsed.OPENAI_MODEL_ALIASES);
 const baseModels = ["gpt-4o", "claude-3-5-sonnet"];
 

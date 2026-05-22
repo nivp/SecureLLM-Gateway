@@ -18,7 +18,7 @@ With containers:
 docker compose up --build
 ```
 
-The compose file starts the API, MongoDB, Redis, and Ollama. The default local model alias points challenge model names to OpenAI's `gpt-oss:20b`, which is the GPT-OSS variant intended for higher-end consumer GPUs such as a 24 GB RTX 3090. Pull it before using live chat:
+The compose file is intended for local/demo use. It publishes only the API on port 3000; MongoDB, Redis, and Ollama stay on the internal Compose network. The default local model alias points challenge model names to OpenAI's `gpt-oss:20b`, which is the GPT-OSS variant intended for higher-end consumer GPUs such as a 24 GB RTX 3090. Pull it before using live chat:
 
 ```bash
 docker compose exec ollama ollama pull gpt-oss:20b
@@ -32,7 +32,7 @@ docker compose exec ollama ollama pull gpt-oss:20b
 - `OPENAI_API_KEY`: provider key. Use a real OpenAI key for OpenAI, or `ollama` for local Ollama compatibility.
 - `OPENAI_BASE_URL`: optional OpenAI-compatible endpoint, for example `http://ollama:11434/v1`.
 - `OPENAI_MODEL_ALIASES`: JSON map from public request model to provider model, for example `{"gpt-4o":"gpt-oss:20b"}`.
-- `PII_ENCRYPTION_KEY`: secret used to encrypt reversible PII token mappings in audit records.
+- `PII_ENCRYPTION_KEY`: secret used to encrypt reversible PII token mappings in audit records. Production startup rejects missing or placeholder values.
 
 ## API
 
@@ -66,6 +66,8 @@ Audit logging records timestamp, API-key ID, model, request/response hashes, det
 
 Secrets handling keeps provider keys and demo API keys in env vars only. `.gitleaks.toml` includes rules for common LLM and cloud secret formats.
 
+Container hardening runs the Node.js runtime container as the non-root `node` user. The local Compose file does not publish MongoDB, Redis, or Ollama to the host.
+
 ## Appendix Fixture
 
 The original Appendix A should not be pasted wholesale into AI tools. Add sanitized/manual cases to `test/fixtures/adversarial-cases.json`:
@@ -85,4 +87,4 @@ The unit tests automatically load this file. Keep the original appendix out of p
 
 ## Known Limitations
 
-This is a compact challenge implementation, not a complete LLM firewall. Regex/signature detection will miss novel attacks, OCR/image prompt injection is out of scope, PII detection is limited to the required categories, and output validation cannot prove absence of sensitive data. Production hardening would add managed secret storage, more telemetry, append-only audit storage, provider retries with circuit breaking, richer adversarial corpora, and CI secret scanning against git history.
+This is a compact challenge implementation, not a complete LLM firewall. Regex/signature detection will miss novel attacks, OCR/image prompt injection is out of scope, PII detection is limited to the required categories, and output validation cannot prove absence of sensitive data. Any admin API key can request `reveal_pii=true` on `/v1/audit`; a regulated production deployment should split that into a narrower permission and separately audit PII reveal events. Production hardening would add managed secret storage, more telemetry, append-only audit storage, provider retries with circuit breaking, richer adversarial corpora, and CI secret scanning against git history.
