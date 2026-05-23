@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fixtureCases from "./fixtures/adversarial-cases.json" with { type: "json" };
+import piiCases from "./fixtures/pii-cases.json" with { type: "json" };
 import { keyIdFor, hashApiKey, verifyApiKey } from "../src/security/hash.js";
 import { detectPromptInjection } from "../src/security/injectionDetector.js";
 import { detectPromptInjectionWithLlmCanary } from "../src/security/llmCanaryInjectionDetector.js";
@@ -96,6 +97,16 @@ describe("PII redaction", () => {
   it("redacts chat messages without mutating roles", () => {
     const result = redactMessages([{ role: "user", content: "Call me at 054-123-4567" }]);
     expect(result.messages[0]).toEqual({ role: "user", content: "Call me at [PII_PHONE_1]" });
+  });
+
+  it.each(piiCases)("redacts all synthetic PII spans for $id", ({ input, expectedValues, expectedCategories }) => {
+    const result = redactText(input);
+
+    for (const value of expectedValues) {
+      expect(result.text).not.toContain(value);
+    }
+    expect(result.tokens.map((token) => token.value)).toEqual(expect.arrayContaining(expectedValues));
+    expect(result.tokens.map((token) => token.category)).toEqual(expect.arrayContaining(expectedCategories));
   });
 
   it("encrypts reversible PII mappings", () => {

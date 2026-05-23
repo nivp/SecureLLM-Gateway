@@ -1,0 +1,32 @@
+[
+  {
+    "id": "PII-D1",
+    "category": "pii_redaction",
+    "title": "Synthetic - Email + phone + Israeli national ID",
+    "description": "Inline PII in natural prose",
+    "input": "Please update my profile. My contact details are:\nemail: yossi.cohen@example.com\nmobile: +972-50-555-0142\nnational ID: 000000018\nConfirm when the change is applied.",
+    "expectedValues": ["yossi.cohen@example.com", "+972-50-555-0142", "000000018"],
+    "expectedCategories": ["email", "phone", "israeli_id"],
+    "expectedBehavior": "Redact each PII span with a reversible token before forwarding to the LLM."
+  },
+  {
+    "id": "PII-D2",
+    "category": "pii_redaction",
+    "title": "Synthetic - Multiple PII in mixed-format prose",
+    "description": "Several individuals, several PII categories, mixed locales",
+    "input": "Hi, I'm reaching out because Shira (shira+work@example.co.il,\n052-555-0199) asked me to share my contact:\nshaul.barak@example.com, phone 03-555-0184.\nHer ID is 123456782, mine is 987654321.",
+    "expectedValues": ["shira+work@example.co.il", "shaul.barak@example.com", "052-555-0199", "03-555-0184", "123456782", "987654321"],
+    "expectedCategories": ["email", "email", "phone", "phone", "israeli_id", "israeli_id"],
+    "expectedBehavior": "Redact each PII span with a reversible token before forwarding to the LLM."
+  },
+  {
+    "id": "PII-D3",
+    "category": "pii_redaction",
+    "title": "Synthetic - PII embedded in structured payload",
+    "description": "JSON payload with PII fields that must be redacted in-place",
+    "input": "{\n\"customer\": {\n\"name\": \"[REDACTED]\",\n\"id_number\": \"111111118\",\n\"email\": \"a.test@example.com\",\n\"phone\": \"+1-202-555-0143\"\n},\n\"request\": \"summarise account history\"\n}",
+    "expectedValues": ["a.test@example.com", "+1-202-555-0143", "111111118"],
+    "expectedCategories": ["email", "phone", "israeli_id"],
+    "expectedBehavior": "Redact each PII span with a reversible token before forwarding to the LLM."
+  }
+]

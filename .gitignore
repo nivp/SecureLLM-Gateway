@@ -6,6 +6,7 @@ test-results.json
 test-results.html
 adversarial-classic-report.html
 adversarial-llm_canary-report.html
+pii-redaction-report.html
 .test-artifacts/
 .env
 .env.*

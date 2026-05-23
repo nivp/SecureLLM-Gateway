@@ -128,6 +128,48 @@ describe("app routes", () => {
     expect(AuditLogModel.create).toHaveBeenCalledWith(expect.objectContaining({ status: "blocked" }));
   });
 
+  it("redacts synthetic PII before forwarding chat to the provider", async () => {
+    mockKey("client-key", "client");
+    const app = createApp(redisMock() as never);
+    const prompt = `Hi, I'm reaching out because Shira (shira+work@example.co.il,
+052-555-0199) asked me to share my contact:
+shaul.barak@example.com, phone 03-555-0184.
+Her ID is 123456782, mine is 987654321.`;
+
+    await request(app)
+      .post("/v1/chat")
+      .set("x-api-key", "client-key")
+      .send({ model: "gpt-4o", messages: [{ role: "user", content: prompt }] })
+      .expect(200);
+
+    expect(providerMocks.createChatCompletion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [
+          {
+            role: "user",
+            content: expect.stringContaining("[PII_EMAIL_1]")
+          }
+        ]
+      })
+    );
+    const forwarded = providerMocks.createChatCompletion.mock.calls[0][0].messages[0].content;
+    for (const rawPii of ["shira+work@example.co.il", "shaul.barak@example.com", "052-555-0199", "03-555-0184", "123456782", "987654321"]) {
+      expect(forwarded).not.toContain(rawPii);
+    }
+    for (const token of ["[PII_EMAIL_1]", "[PII_EMAIL_2]", "[PII_PHONE_1]", "[PII_PHONE_2]", "[PII_ISRAELI_ID_1]", "[PII_ISRAELI_ID_2]"]) {
+      expect(forwarded).toContain(token);
+    }
+    expect(AuditLogModel.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "allowed",
+        piiTokens: expect.arrayContaining([
+          expect.objectContaining({ token: "[PII_EMAIL_1]", category: "email", encryptedValue: expect.any(String) }),
+          expect.objectContaining({ token: "[PII_ISRAELI_ID_2]", category: "israeli_id", encryptedValue: expect.any(String) })
+        ])
+      })
+    );
+  });
+
   it("allows chat to continue when llm_canary returns ok", async () => {
     mockedConfig.INJECTION_DETECTION_MODE = "llm_canary";
     mockKey("client-key", "client");

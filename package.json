@@ -9,6 +9,7 @@
     "start": "node dist/src/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:pii:redaction": "tsx scripts/runPiiRedactionReport.ts",
     "test:adversarial:classic": "powershell -ExecutionPolicy Bypass -File scripts/runAdversarialClassicReport.ps1",
     "test:adversarial:canary": "powershell -ExecutionPolicy Bypass -File scripts/runAdversarialCanaryReport.ps1",
     "seed:keys": "tsx scripts/seedKeys.ts",

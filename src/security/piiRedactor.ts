@@ -16,10 +16,14 @@ const patterns: Pattern[] = [
 ];
 
 function isValidIsraeliId(value: string): boolean {
-  const digits = value.replace(/\D/g, "").padStart(9, "0");
-  if (!/^\d{9}$/.test(digits)) {
+  const rawDigits = value.replace(/\D/g, "");
+  if (!/^\d{5,9}$/.test(rawDigits)) {
     return false;
   }
+  if (rawDigits.length === 9) {
+    return true;
+  }
+  const digits = rawDigits.padStart(9, "0");
   const sum = [...digits].reduce((acc, digit, index) => {
     let n = Number(digit) * ((index % 2) + 1);
     if (n > 9) {

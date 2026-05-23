@@ -169,6 +169,14 @@ For local watch mode:
 npm run test:watch
 ```
 
+For a local PII redaction report:
+
+```powershell
+npm run test:pii:redaction
+```
+
+This reads `test/fixtures/pii-cases.json`, redacts each prompt with the same code path used before provider calls, verifies that expected raw PII values are absent from the forwarded prompt, and writes `pii-redaction-report.html` plus `.test-artifacts/pii-redaction-results.json`.
+
 For a full adversarial fixture run against the deployed API in classic regex mode:
 
 ```powershell
