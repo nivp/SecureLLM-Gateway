@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { z } from "zod";
+import type { InjectionDetectionMode } from "./types.js";
 
 const PLACEHOLDER_PII_KEYS = new Set(["replace-with-32-byte-secret", "local-demo-pii-encryption-key-32b"]);
 const MIN_PRODUCTION_PII_KEY_BYTES = 32;
@@ -9,7 +10,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   MONGODB_URI: z.string().default("mongodb://localhost:27017/securellm"),
   REDIS_URL: z.string().default("redis://localhost:6379"),
-  INJECTION_DETECTION_MODE: z.enum(["classic", "llm_canary"]).default("llm_canary"),
+  INJECTION_DETECTION_MODE: z.enum(["classic", "llm_canary", "combined"]).default("classic"),
   LLM_CANARY_DEBUG_LOGS: z.coerce.boolean().default(false),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_BASE_URL: z.string().url().optional(),
@@ -19,6 +20,7 @@ const envSchema = z.object({
 });
 
 export type AppConfig = z.infer<typeof envSchema> & {
+  INJECTION_DETECTION_MODE: InjectionDetectionMode;
   modelAliases: Record<string, string>;
   allowedModels: Set<string>;
 };

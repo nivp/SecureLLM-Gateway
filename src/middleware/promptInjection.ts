@@ -14,59 +14,66 @@ export function promptInjectionMiddleware() {
     let threats: Threat[];
 
     try {
-      threats =
-        config.INJECTION_DETECTION_MODE === "llm_canary"
-          ? await detectPromptInjectionWithLlmCanary(messages, async (guardMessages) => {
-              const canaryModel = config.OPENAI_CANARY_MODEL ?? req.validatedChat?.providerModel ?? "";
-              try {
-                const canaryOutput = await createPromptGuardCompletion({
+      const detectWithCanary = async (): Promise<Threat[]> =>
+        detectPromptInjectionWithLlmCanary(messages, async (guardMessages) => {
+          const canaryModel = config.OPENAI_CANARY_MODEL ?? req.validatedChat?.providerModel ?? "";
+          try {
+            const canaryOutput = await createPromptGuardCompletion({
+              model: canaryModel,
+              messages: guardMessages
+            });
+
+            if (config.LLM_CANARY_DEBUG_LOGS) {
+              logger.warn(
+                {
+                  correlationId: req.id,
                   model: canaryModel,
-                  messages: guardMessages
-                });
+                  incomingMessages: guardMessages,
+                  canaryOutput,
+                  canaryTrace: {
+                    correlationId: req.id,
+                    model: canaryModel,
+                    incomingMessages: guardMessages,
+                    canaryOutput
+                  }
+                },
+                "llm canary debug trace"
+              );
+            }
 
-                if (config.LLM_CANARY_DEBUG_LOGS) {
-                  logger.warn(
-                    {
-                      correlationId: req.id,
-                      model: canaryModel,
-                      incomingMessages: guardMessages,
-                      canaryOutput,
-                      canaryTrace: {
-                        correlationId: req.id,
-                        model: canaryModel,
-                        incomingMessages: guardMessages,
-                        canaryOutput
-                      }
-                    },
-                    "llm canary debug trace"
-                  );
-                }
+            return canaryOutput;
+          } catch (error) {
+            if (config.LLM_CANARY_DEBUG_LOGS) {
+              logger.warn(
+                {
+                  correlationId: req.id,
+                  model: canaryModel,
+                  incomingMessages: guardMessages,
+                  canaryError: error instanceof Error ? error.message : "unknown_canary_error",
+                  canaryTrace: {
+                    correlationId: req.id,
+                    model: canaryModel,
+                    incomingMessages: guardMessages,
+                    canaryError: error instanceof Error ? error.message : "unknown_canary_error"
+                  }
+                },
+                "llm canary debug trace"
+              );
+            }
+            throw error;
+          }
+        });
 
-                return canaryOutput;
-              } catch (error) {
-                if (config.LLM_CANARY_DEBUG_LOGS) {
-                  logger.warn(
-                    {
-                      correlationId: req.id,
-                      model: canaryModel,
-                      incomingMessages: guardMessages,
-                      canaryError: error instanceof Error ? error.message : "unknown_canary_error",
-                      canaryTrace: {
-                        correlationId: req.id,
-                        model: canaryModel,
-                        incomingMessages: guardMessages,
-                        canaryError: error instanceof Error ? error.message : "unknown_canary_error"
-                      }
-                    },
-                    "llm canary debug trace"
-                  );
-                }
-                throw error;
-              }
-            })
-          : detectPromptInjection(messages);
+      if (config.INJECTION_DETECTION_MODE === "llm_canary") {
+        threats = await detectWithCanary();
+      } else {
+        threats = detectPromptInjection(messages);
+        if (threats.length === 0 && config.INJECTION_DETECTION_MODE === "combined") {
+          threats = await detectWithCanary();
+        }
+      }
     } catch (error) {
-      if (config.INJECTION_DETECTION_MODE !== "llm_canary") {
+      if (config.INJECTION_DETECTION_MODE === "classic") {
         throw error;
       }
 

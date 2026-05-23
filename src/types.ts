@@ -1,5 +1,7 @@
 export type Role = "client" | "admin";
 
+export type InjectionDetectionMode = "classic" | "llm_canary" | "combined";
+
 export type ChatMessage = {
   role: "system" | "user" | "assistant";
   content: string;

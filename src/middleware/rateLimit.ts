@@ -1,5 +1,6 @@
 import type { Redis } from "ioredis";
 import type { NextFunction, Request, Response } from "express";
+import { sha256Json, writeAuditSafe } from "../audit.js";
 import { asyncHandler } from "./errors.js";
 
 export function rateLimitMiddleware(redis: Redis) {
@@ -26,6 +27,14 @@ export function rateLimitMiddleware(redis: Redis) {
     res.setHeader("x-ratelimit-remaining", String(Math.max(req.auth.rateLimitPerMinute - count, 0)));
 
     if (count > req.auth.rateLimitPerMinute) {
+      await writeAuditSafe({
+        req,
+        startedAt: res.locals.startedAt as number,
+        status: "blocked",
+        statusCode: 429,
+        requestHash: sha256Json({ path: req.path, method: req.method, body: req.body }),
+        threats: [{ type: "rate_limit", ruleId: "rate-limit-exceeded", message: "API key rate limit exceeded" }]
+      });
       res.status(429).json({ error: "rate_limit_exceeded" });
       return;
     }

@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { z } from "zod";
+import { sha256Json, writeAuditSafe } from "../audit.js";
 import { config } from "../config.js";
 
 const chatSchema = z.object({
@@ -18,12 +19,34 @@ const chatSchema = z.object({
 export function validateChatBody(req: Request, res: Response, next: NextFunction): void {
   const parsed = chatSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "invalid_request", details: parsed.error.flatten() });
+    void writeAuditSafe({
+      req,
+      startedAt: res.locals.startedAt as number,
+      status: "blocked",
+      statusCode: 400,
+      requestHash: sha256Json({ path: req.path, method: req.method, body: req.body }),
+      threats: [{ type: "validation", ruleId: "invalid-chat-request", message: "Invalid chat request body" }]
+    }).finally(() => {
+      res.status(400).json({ error: "invalid_request", details: parsed.error.flatten() });
+    });
     return;
   }
 
   if (!config.allowedModels.has(parsed.data.model)) {
-    res.status(400).json({ error: "unsupported_model" });
+    req.validatedChat = {
+      ...parsed.data,
+      providerModel: parsed.data.model
+    };
+    void writeAuditSafe({
+      req,
+      startedAt: res.locals.startedAt as number,
+      status: "blocked",
+      statusCode: 400,
+      requestHash: sha256Json({ path: req.path, method: req.method, body: req.body }),
+      threats: [{ type: "validation", ruleId: "unsupported-model", message: "Unsupported model" }]
+    }).finally(() => {
+      res.status(400).json({ error: "unsupported_model" });
+    });
     return;
   }
 

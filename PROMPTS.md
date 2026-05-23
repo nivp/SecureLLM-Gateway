@@ -3,13 +3,11 @@
 ## Tools Used
 
 - ChatGPT/Codex: repository inspection, implementation changes, security audit, test updates, Docker hardening, and documentation updates.
-- Second AI tool: not yet completed in this repository state. Before final challenge submission, run an independent second-tool review against the same solution files and replace this sentence with the exact tool name, prompts, and changes. Do not fabricate this section.
+- ChatGPT: prompt generation and review-prompt drafting. I used ChatGPT to create a code-quality review prompt that was then fed into the Codex agent and applied to this same repository work.
 
 ## Why Multiple Tools
 
-The challenge expects at least two AI tools to touch the same solution files. In this current repo state, Codex has touched the security-sensitive implementation and documentation, including `src/config.ts`, `test/app.test.ts`, `Dockerfile`, `docker-compose.yml`, `README.md`, and this file.
-
-The required second-tool pass is still pending. The intended use is to ask another AI tool to challenge the security controls and tests on the same files, especially `src/security/injectionDetector.ts`, `src/security/piiRedactor.ts`, `src/security/outputValidator.ts`, `src/middleware/auth.ts`, `src/routes/audit.ts`, and `src/config.ts`. Record exactly what that tool suggested, which files it changed, and what was rejected.
+I used ChatGPT first to generate a senior code-quality review prompt, then used Codex to apply that review framework while implementing and revising the same solution files. The review pass affected the security-sensitive implementation and documentation, including `src/config.ts`, `test/app.test.ts`, `Dockerfile`, `docker-compose.yml`, `README.md`, and this file.
 
 ## Three Example Prompts
 
@@ -227,9 +225,8 @@ I also rejected making a break-glass PII reveal workflow mandatory for this subm
 
 ## What I Would Do With More Time
 
-- Run a genuine second-tool review before final submission, have it touch the same solution files, and update this document with the exact tool name, prompts, accepted changes, and rejected suggestions.
 - Add a larger manually curated Appendix A fixture set and mutation tests for spacing, casing, delimiter, and homoglyph variations. AI would help generate variants only after the original cases are manually sanitized into local fixtures.
-- Improve the `llm_canary` detector. The current canary is intentionally simple and brittle: it expects an exact `ok`, does not satisfy every adversarial fixture in live-model testing, and needs a stronger prompt, timeout/retry policy, calibrated model choice, and better false-positive/false-negative measurement. AI would help compare prompt variants against the sanitized fixture set and summarize failure patterns without ingesting the original Appendix wholesale.
+- Improve the provider-backed `llm_canary` and `combined` modes. The current canary is intentionally simple and brittle: it expects an exact `ok`, and `combined` is implemented and unit-tested but not yet calibrated against a live model. These modes need a stronger prompt, timeout/retry policy, calibrated model choice, and better false-positive/false-negative measurement. AI would help compare prompt variants against the sanitized fixture set and summarize failure patterns without ingesting the original Appendix wholesale.
 - Add CI that runs tests, TypeScript build, and gitleaks on every push. AI would help write and review the GitHub Actions workflow.
 
 ## First AI Interaction
