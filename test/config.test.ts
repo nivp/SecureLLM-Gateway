@@ -35,14 +35,14 @@ describe("configuration validation", () => {
     expect(loaded.config.INJECTION_DETECTION_MODE).toBe("llm_canary");
   });
 
-  it("defaults to classic mode with debug canary logs disabled", async () => {
+  it("defaults to llm_canary mode with debug canary logs disabled", async () => {
     vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv("PII_ENCRYPTION_KEY", "local-demo-pii-encryption-key-32b");
     vi.stubEnv("INJECTION_DETECTION_MODE", undefined);
     vi.stubEnv("LLM_CANARY_DEBUG_LOGS", undefined);
 
     const loaded = await import("../src/config.js");
-    expect(loaded.config.INJECTION_DETECTION_MODE).toBe("classic");
+    expect(loaded.config.INJECTION_DETECTION_MODE).toBe("llm_canary");
     expect(loaded.config.LLM_CANARY_DEBUG_LOGS).toBe(false);
     expect(loaded.config.OPENAI_CANARY_MODEL).toBeUndefined();
   });
