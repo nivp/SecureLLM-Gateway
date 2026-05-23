@@ -14,27 +14,33 @@ const querySchema = z.object({
 
 export function auditRouter(): Router {
   const router = createRouter();
-  router.get("/v1/audit", asyncHandler(async (req, res) => {
-    const parsed = querySchema.safeParse(req.query);
-    if (!parsed.success) {
-      res.status(400).json({ error: "invalid_query", details: parsed.error.flatten() });
-      return;
-    }
+  router.get(
+    "/v1/audit",
+    asyncHandler(async (req, res) => {
+      const parsed = querySchema.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_query", details: parsed.error.flatten() });
+        return;
+      }
 
-    const query = parsed.data.since ? { timestamp: { $gte: new Date(parsed.data.since) } } : {};
-    const records = await AuditLogModel.find(query).sort({ timestamp: -1 }).limit(parsed.data.limit).lean();
-    const reveal = parsed.data.reveal_pii === "true" && Boolean(config.PII_ENCRYPTION_KEY);
+      const query = parsed.data.since ? { timestamp: { $gte: new Date(parsed.data.since) } } : {};
+      const records = await AuditLogModel.find(query).sort({ timestamp: -1 }).limit(parsed.data.limit).lean();
+      const reveal = parsed.data.reveal_pii === "true" && Boolean(config.PII_ENCRYPTION_KEY);
 
-    res.json({
-      entries: records.map((record) => ({
-        ...record,
-        piiTokens: record.piiTokens?.map((token) => ({
-          token: token.token,
-          category: token.category,
-          value: reveal && token.encryptedValue ? decryptValue(token.encryptedValue, config.PII_ENCRYPTION_KEY!) : undefined
+      res.json({
+        entries: records.map((record) => ({
+          ...record,
+          piiTokens: record.piiTokens?.map((token) => ({
+            token: token.token,
+            category: token.category,
+            value:
+              reveal && token.encryptedValue
+                ? decryptValue(token.encryptedValue, config.PII_ENCRYPTION_KEY!)
+                : undefined
+          }))
         }))
-      }))
-    });
-  }));
+      });
+    })
+  );
   return router;
 }

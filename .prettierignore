@@ -1,0 +1,7 @@
+dist
+node_modules
+.test-artifacts
+coverage
+tools
+*.html
+package-lock.json

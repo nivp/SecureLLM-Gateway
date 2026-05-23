@@ -3,7 +3,11 @@ import type { ChatMessage, Threat } from "../types.js";
 export type PromptGuardCompletion = (messages: ChatMessage[]) => Promise<string>;
 
 function normalizeGuardReply(reply: string): string {
-  return reply.trim().toLowerCase().replace(/^["'`]+|["'`.!]+$/g, "").trim();
+  return reply
+    .trim()
+    .toLowerCase()
+    .replace(/^["'`]+|["'`.!]+$/g, "")
+    .trim();
 }
 
 export async function detectPromptInjectionWithLlmCanary(

@@ -21,8 +21,18 @@ async function upsertKey(name: string, value: string | undefined, role: Role, ra
 
 async function main(): Promise<void> {
   await connectMongo(process.env.MONGODB_URI);
-  await upsertKey("CLIENT_API_KEY", process.env.CLIENT_API_KEY, "client", Number(process.env.CLIENT_RATE_LIMIT_PER_MINUTE ?? 30));
-  await upsertKey("ADMIN_API_KEY", process.env.ADMIN_API_KEY, "admin", Number(process.env.ADMIN_RATE_LIMIT_PER_MINUTE ?? 120));
+  await upsertKey(
+    "CLIENT_API_KEY",
+    process.env.CLIENT_API_KEY,
+    "client",
+    Number(process.env.CLIENT_RATE_LIMIT_PER_MINUTE ?? 30)
+  );
+  await upsertKey(
+    "ADMIN_API_KEY",
+    process.env.ADMIN_API_KEY,
+    "admin",
+    Number(process.env.ADMIN_RATE_LIMIT_PER_MINUTE ?? 120)
+  );
   await disconnectMongo();
 }
 

@@ -90,12 +90,17 @@ function escapeHtml(value: unknown): string {
 }
 
 function normalizeCanaryOutput(value: string | undefined): string {
-  return (value ?? "").trim().toLowerCase().replace(/^['"`]+|['"`.!]+$/g, "");
+  return (value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/^['"`]+|['"`.!]+$/g, "");
 }
 
 async function assertApiReachable(): Promise<void> {
   const response = await fetch(`${apiBaseUrl}/healthz`).catch((error: unknown) => {
-    throw new Error(`API is not reachable at ${apiBaseUrl}: ${error instanceof Error ? error.message : "unknown error"}`);
+    throw new Error(
+      `API is not reachable at ${apiBaseUrl}: ${error instanceof Error ? error.message : "unknown error"}`
+    );
   });
   if (!response.ok && response.status !== 503) {
     throw new Error(`API health check returned ${response.status}`);
@@ -205,7 +210,9 @@ function expectedFor(testCase: AdversarialCase): {
 
 function actualThreatsFromBody(actualBody: unknown): string[] {
   const body = actualBody as { threats?: unknown };
-  return Array.isArray(body.threats) ? body.threats.filter((threat): threat is string => typeof threat === "string") : [];
+  return Array.isArray(body.threats)
+    ? body.threats.filter((threat): threat is string => typeof threat === "string")
+    : [];
 }
 
 function evaluateResult(params: {
@@ -449,7 +456,14 @@ async function main(): Promise<void> {
       const actualThreats = actualThreatsFromBody(response.body);
       const outputValidationThreats = outputValidationThreatsFor(testCase);
       const [trace, auditEntry] = await Promise.all([readCanaryTrace(correlationId), readAuditEntry(correlationId)]);
-      const evaluation = evaluateResult({ testCase, actualStatus: response.status, actualThreats, outputValidationThreats, auditEntry, trace });
+      const evaluation = evaluateResult({
+        testCase,
+        actualStatus: response.status,
+        actualThreats,
+        outputValidationThreats,
+        auditEntry,
+        trace
+      });
 
       results.push({
         id: testCase.id,

@@ -78,7 +78,9 @@ function evaluate(testCase: PiiCase): CaseResult {
   }
 
   if (redacted.tokens.length < testCase.expectedValues.length) {
-    errors.push(`Expected at least ${testCase.expectedValues.length} redaction token(s), got ${redacted.tokens.length}.`);
+    errors.push(
+      `Expected at least ${testCase.expectedValues.length} redaction token(s), got ${redacted.tokens.length}.`
+    );
   }
 
   return {

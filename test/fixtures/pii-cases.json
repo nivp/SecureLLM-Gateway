@@ -15,7 +15,14 @@
     "title": "Synthetic - Multiple PII in mixed-format prose",
     "description": "Several individuals, several PII categories, mixed locales",
     "input": "Hi, I'm reaching out because Shira (shira+work@example.co.il,\n052-555-0199) asked me to share my contact:\nshaul.barak@example.com, phone 03-555-0184.\nHer ID is 123456782, mine is 987654321.",
-    "expectedValues": ["shira+work@example.co.il", "shaul.barak@example.com", "052-555-0199", "03-555-0184", "123456782", "987654321"],
+    "expectedValues": [
+      "shira+work@example.co.il",
+      "shaul.barak@example.com",
+      "052-555-0199",
+      "03-555-0184",
+      "123456782",
+      "987654321"
+    ],
     "expectedCategories": ["email", "email", "phone", "phone", "israeli_id", "israeli_id"],
     "expectedBehavior": "Redact each PII span with a reversible token before forwarding to the LLM."
   },

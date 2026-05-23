@@ -4,12 +4,14 @@ import { config } from "../config.js";
 
 const chatSchema = z.object({
   model: z.string().min(1),
-  messages: z.array(
-    z.object({
-      role: z.enum(["system", "user", "assistant"]),
-      content: z.string().min(1)
-    })
-  ).min(1),
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(["system", "user", "assistant"]),
+        content: z.string().min(1)
+      })
+    )
+    .min(1),
   max_tokens: z.number().int().positive().max(8192).default(1024)
 });
 
