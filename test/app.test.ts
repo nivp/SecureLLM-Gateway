@@ -1,11 +1,24 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import fixtureCases from "./fixtures/adversarial-cases.json" with { type: "json" };
+import piiCases from "./fixtures/pii-cases.json" with { type: "json" };
 import { createApp } from "../src/app.js";
 import { logger } from "../src/logger.js";
 import { ApiKeyModel } from "../src/models/ApiKey.js";
 import { AuditLogModel } from "../src/models/AuditLog.js";
 import { hashApiKey, keyIdFor } from "../src/security/hash.js";
-import { encryptValue } from "../src/security/piiCrypto.js";
+import { decryptValue, encryptValue } from "../src/security/piiCrypto.js";
+import type { ChatMessage } from "../src/types.js";
+
+const promptInjectionCases = fixtureCases.filter(
+  (item) => item.category === "prompt_injection" && item.expectedBlocked !== false && item.input.trim().length > 0
+);
+
+type ChatCompletionParams = {
+  model: string;
+  messages: ChatMessage[];
+  maxTokens: number;
+};
 
 const mockedConfig = vi.hoisted(() => ({
   NODE_ENV: "test",
@@ -77,6 +90,13 @@ function mockKey(apiKey: string, role: "client" | "admin" = "client") {
       enabled: true
     }))
   } as never);
+}
+
+function lastForwardedContent(): string {
+  const calls = providerMocks.createChatCompletion.mock.calls as unknown as Array<[ChatCompletionParams]>;
+  const lastCall = calls.at(-1);
+  expect(lastCall).toBeDefined();
+  return lastCall?.[0].messages[0]?.content ?? "";
 }
 
 describe("app routes", () => {
@@ -176,6 +196,57 @@ describe("app routes", () => {
     expect(AuditLogModel.create).toHaveBeenCalledWith(expect.objectContaining({ status: "blocked" }));
   });
 
+  it.each(promptInjectionCases)("blocks and audits corpus prompt-injection entry $id", async (item) => {
+    mockKey("client-key", "client");
+    const app = createApp(redisMock() as never);
+
+    await request(app)
+      .post("/v1/chat")
+      .set("x-api-key", "client-key")
+      .send({ model: "gpt-4o", messages: [{ role: "user", content: item.input }] })
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.error).toBe("prompt_injection_detected");
+        expect(res.body.threats, item.id).toEqual(expect.arrayContaining([expect.any(String)]));
+      });
+
+    expect(providerMocks.createChatCompletion).not.toHaveBeenCalled();
+    const auditRecord = vi.mocked(AuditLogModel.create).mock.calls.at(-1)?.[0] as
+      | { status?: string; statusCode?: number; detectedThreats?: string[] }
+      | undefined;
+    expect(auditRecord, item.id).toEqual(
+      expect.objectContaining({
+        status: "blocked",
+        statusCode: 400,
+        detectedThreats: expect.arrayContaining([expect.any(String)])
+      })
+    );
+  });
+
+  it.each(promptInjectionCases)("blocks model echoes of corpus prompt-injection entry $id", async (item) => {
+    mockKey("client-key", "client");
+    providerMocks.createChatCompletion.mockResolvedValueOnce(item.input);
+    const app = createApp(redisMock() as never);
+
+    await request(app)
+      .post("/v1/chat")
+      .set("x-api-key", "client-key")
+      .send({ model: "gpt-4o", messages: [{ role: "user", content: "Summarize the account status." }] })
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.error).toBe("unsafe_model_output");
+        expect(res.body.threats, item.id).toEqual(expect.arrayContaining([expect.any(String)]));
+      });
+
+    expect(AuditLogModel.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "blocked",
+        statusCode: 400,
+        detectedThreats: expect.arrayContaining([expect.any(String)])
+      })
+    );
+  });
+
   it("redacts synthetic PII before forwarding chat to the provider", async () => {
     mockKey("client-key", "client");
     const app = createApp(redisMock() as never);
@@ -200,7 +271,7 @@ Her ID is 123456782, mine is 987654321.`;
         ]
       })
     );
-    const forwarded = providerMocks.createChatCompletion.mock.calls[0][0].messages[0].content;
+    const forwarded = lastForwardedContent();
     for (const rawPii of [
       "shira+work@example.co.il",
       "shaul.barak@example.com",
@@ -235,6 +306,76 @@ Her ID is 123456782, mine is 987654321.`;
       })
     );
   });
+
+  it.each(piiCases)(
+    "forwards corpus PII entry $id with redacted spans and audit-only recovery",
+    async ({ input, expectedValues, expectedCategories }) => {
+      mockKey("client-key", "client");
+      const app = createApp(redisMock() as never);
+
+      await request(app)
+        .post("/v1/chat")
+        .set("x-api-key", "client-key")
+        .send({ model: "gpt-4o", messages: [{ role: "user", content: input }] })
+        .expect(200);
+
+      const forwarded = lastForwardedContent();
+      expect(forwarded).toEqual(expect.any(String));
+      for (const rawPii of expectedValues) {
+        expect(forwarded).not.toContain(rawPii);
+      }
+
+      const auditRecord = vi.mocked(AuditLogModel.create).mock.calls.at(-1)?.[0] as
+        | {
+            status?: string;
+            piiTokens?: Array<{ token: string; category: string; encryptedValue?: string }>;
+          }
+        | undefined;
+      expect(auditRecord).toEqual(
+        expect.objectContaining({
+          status: "allowed",
+          piiTokens: expect.arrayContaining(
+            expectedCategories.map((category) => expect.objectContaining({ category }))
+          )
+        })
+      );
+
+      const encryptedValues = auditRecord?.piiTokens?.map((token) => token.encryptedValue ?? "") ?? [];
+      for (const rawPii of expectedValues) {
+        expect(encryptedValues.join(" ")).not.toContain(rawPii);
+      }
+      const recoveredValues =
+        auditRecord?.piiTokens?.map((token) =>
+          decryptValue(token.encryptedValue ?? "", mockedConfig.PII_ENCRYPTION_KEY)
+        ) ?? [];
+      expect(recoveredValues).toEqual(expect.arrayContaining(expectedValues));
+
+      mockKey("admin-key", "admin");
+      vi.mocked(AuditLogModel.find).mockReturnValue({
+        sort: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        lean: vi.fn(async () => [auditRecord])
+      } as never);
+
+      await request(app)
+        .get("/v1/audit")
+        .set("x-api-key", "admin-key")
+        .expect(200)
+        .expect((res) => {
+          const tokenValues = res.body.entries[0].piiTokens.map((token: { value?: string }) => token.value);
+          expect(tokenValues.filter(Boolean)).toEqual([]);
+        });
+
+      await request(app)
+        .get("/v1/audit?reveal_pii=true")
+        .set("x-api-key", "admin-key")
+        .expect(200)
+        .expect((res) => {
+          const tokenValues = res.body.entries[0].piiTokens.map((token: { value?: string }) => token.value);
+          expect(tokenValues).toEqual(expect.arrayContaining(expectedValues));
+        });
+    }
+  );
 
   it("allows chat to continue when llm_canary returns ok", async () => {
     mockedConfig.INJECTION_DETECTION_MODE = "llm_canary";

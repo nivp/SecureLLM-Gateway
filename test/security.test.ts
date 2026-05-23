@@ -8,6 +8,22 @@ import { decryptValue, encryptValue } from "../src/security/piiCrypto.js";
 import { redactMessages, redactText } from "../src/security/piiRedactor.js";
 import { validateOutput } from "../src/security/outputValidator.js";
 
+const promptInjectionCases = fixtureCases.filter(
+  (item) => item.category === "prompt_injection" && item.expectedBlocked !== false && item.input.trim().length > 0
+);
+
+function caseVariant(input: string): string {
+  return input.toUpperCase();
+}
+
+function whitespaceVariant(input: string): string {
+  return input.replace(/\s+/g, " \n\t ");
+}
+
+function encodedVariant(input: string): string {
+  return encodeURIComponent(input);
+}
+
 describe("auth hashing", () => {
   it("verifies only the original API key", () => {
     const key = "client_test_key_123";
@@ -65,17 +81,22 @@ describe("prompt injection detection", () => {
     }
   });
 
-  it("detects every blocked prompt-injection fixture in classic mode", () => {
-    for (const item of fixtureCases) {
-      if (item.category !== "prompt_injection" || item.expectedBlocked === false || item.input.trim().length === 0) {
-        continue;
-      }
-
+  it.each(promptInjectionCases)("detects blocked prompt-injection fixture $id in classic mode", (item) => {
       const threats = detectPromptInjection([{ role: "user", content: item.input }]);
 
       expect(
         threats.map((threat) => threat.ruleId),
         item.id
+      ).not.toEqual([]);
+  });
+
+  it.each(promptInjectionCases)("detects case, whitespace, and encoded variants for $id", (item) => {
+    const variants = [caseVariant(item.input), whitespaceVariant(item.input), encodedVariant(item.input)];
+
+    for (const variant of variants) {
+      expect(
+        detectPromptInjection([{ role: "user", content: variant }]).map((threat) => threat.ruleId),
+        `${item.id}: ${variant}`
       ).not.toEqual([]);
     }
   });
@@ -149,15 +170,20 @@ describe("output validation", () => {
     );
   });
 
-  it("blocks echoed content for fixtures that require output validation", () => {
-    for (const item of fixtureCases) {
-      if (!item.expectedOutputValidation || item.input.trim().length === 0) {
-        continue;
-      }
-
+  it.each(promptInjectionCases)("blocks echoed prompt-injection fixture $id", (item) => {
       expect(
         validateOutput(item.input).map((threat) => threat.ruleId),
         item.id
+      ).not.toEqual([]);
+  });
+
+  it.each(promptInjectionCases)("blocks echoed case, whitespace, and encoded variants for $id", (item) => {
+    const variants = [caseVariant(item.input), whitespaceVariant(item.input), encodedVariant(item.input)];
+
+    for (const variant of variants) {
+      expect(
+        validateOutput(variant).map((threat) => threat.ruleId),
+        `${item.id}: ${variant}`
       ).not.toEqual([]);
     }
   });

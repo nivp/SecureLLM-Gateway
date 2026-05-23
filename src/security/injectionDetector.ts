@@ -45,8 +45,31 @@ const rules: Rule[] = [
   }
 ];
 
-function normalize(value: string): string {
+function decodeHtmlEntities(value: string): string {
   return value
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&amp;/gi, "&")
+    .replace(/&#x([0-9a-f]+);/gi, (_match, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_match, code: string) => String.fromCodePoint(Number.parseInt(code, 10)));
+}
+
+function decodePercentEncoding(value: string): string {
+  if (!/%[0-9a-f]{2}/i.test(value)) {
+    return value;
+  }
+
+  try {
+    return decodeURIComponent(value.replace(/\+/g, " "));
+  } catch {
+    return value;
+  }
+}
+
+function normalize(value: string): string {
+  return decodeHtmlEntities(decodePercentEncoding(value))
     .replace(/[\u200B-\u200D\uFEFF]/g, "")
     .replace(/\s+/g, " ")
     .trim();
