@@ -12,6 +12,7 @@ const envSchema = z.object({
   LLM_CANARY_DEBUG_LOGS: z.coerce.boolean().default(false),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_BASE_URL: z.string().url().optional(),
+  OPENAI_CANARY_MODEL: z.string().min(1).optional(),
   OPENAI_MODEL_ALIASES: z.string().optional(),
   PII_ENCRYPTION_KEY: z.string().optional()
 });

@@ -4,7 +4,11 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["test/**/*.test.ts"],
+    env: {
+      NODE_ENV: "test"
+    },
     restoreMocks: true,
+    reporters: "default",
     fileParallelism: false,
     maxWorkers: 1,
     minWorkers: 1

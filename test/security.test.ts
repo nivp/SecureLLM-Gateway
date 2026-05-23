@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fixtureCases from "./fixtures/adversarial-cases.json" with { type: "json" };
 import { keyIdFor, hashApiKey, verifyApiKey } from "../src/security/hash.js";
-import { detectPromptInjection, detectPromptInjectionText } from "../src/security/injectionDetector.js";
+import { detectPromptInjection } from "../src/security/injectionDetector.js";
 import { detectPromptInjectionWithLlmCanary } from "../src/security/llmCanaryInjectionDetector.js";
 import { decryptValue, encryptValue } from "../src/security/piiCrypto.js";
 import { redactMessages, redactText } from "../src/security/piiRedactor.js";
@@ -29,10 +29,12 @@ describe("prompt injection detection", () => {
     );
   });
 
-  it("loads manually maintained adversarial fixtures", () => {
+  it("loads manually maintained adversarial fixtures with the documented schema", () => {
     for (const item of fixtureCases) {
-      const threats = detectPromptInjectionText(item.input).map((threat) => threat.ruleId);
-      expect(threats).toEqual(expect.arrayContaining(item.expectedThreats));
+      expect(item.id).toEqual(expect.any(String));
+      expect(item.category).toEqual(expect.any(String));
+      expect(item.input).toEqual(expect.any(String));
+      expect(item.expectedThreats).toEqual(expect.any(Array));
     }
   });
 

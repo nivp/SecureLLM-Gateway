@@ -2,6 +2,10 @@ node_modules/
 dist/
 coverage/
 tools/gitleaks/
+test-results.json
+test-results.html
+adversarial-canary-report.html
+.test-artifacts/
 .env
 .env.*
 !.env.example

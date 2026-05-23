@@ -17,9 +17,10 @@ export function promptInjectionMiddleware() {
       threats =
         config.INJECTION_DETECTION_MODE === "llm_canary"
           ? await detectPromptInjectionWithLlmCanary(messages, async (guardMessages) => {
+              const canaryModel = config.OPENAI_CANARY_MODEL ?? req.validatedChat?.providerModel ?? "";
               try {
                 const canaryOutput = await createPromptGuardCompletion({
-                  model: req.validatedChat?.providerModel ?? "",
+                  model: canaryModel,
                   messages: guardMessages
                 });
 
@@ -27,9 +28,15 @@ export function promptInjectionMiddleware() {
                   logger.warn(
                     {
                       correlationId: req.id,
-                      model: req.validatedChat?.providerModel,
+                      model: canaryModel,
                       incomingMessages: guardMessages,
-                      canaryOutput
+                      canaryOutput,
+                      canaryTrace: {
+                        correlationId: req.id,
+                        model: canaryModel,
+                        incomingMessages: guardMessages,
+                        canaryOutput
+                      }
                     },
                     "llm canary debug trace"
                   );
@@ -41,9 +48,15 @@ export function promptInjectionMiddleware() {
                   logger.warn(
                     {
                       correlationId: req.id,
-                      model: req.validatedChat?.providerModel,
+                      model: canaryModel,
                       incomingMessages: guardMessages,
-                      canaryError: error instanceof Error ? error.message : "unknown_canary_error"
+                      canaryError: error instanceof Error ? error.message : "unknown_canary_error",
+                      canaryTrace: {
+                        correlationId: req.id,
+                        model: canaryModel,
+                        incomingMessages: guardMessages,
+                        canaryError: error instanceof Error ? error.message : "unknown_canary_error"
+                      }
                     },
                     "llm canary debug trace"
                   );

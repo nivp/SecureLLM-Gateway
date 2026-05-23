@@ -14,6 +14,7 @@ services:
       LLM_CANARY_DEBUG_LOGS: ${LLM_CANARY_DEBUG_LOGS:-false}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-ollama}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://ollama:11434/v1}
+      OPENAI_CANARY_MODEL: ${OPENAI_CANARY_MODEL:-gpt-oss:20b}
       OPENAI_MODEL_ALIASES: '${OPENAI_MODEL_ALIASES:-{"gpt-4o":"gpt-oss:20b","claude-3-5-sonnet":"gpt-oss:20b"}}'
       PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:-local-demo-pii-encryption-key-32b}
     ports:

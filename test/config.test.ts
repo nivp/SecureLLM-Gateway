@@ -37,5 +37,17 @@ describe("configuration validation", () => {
     const loaded = await import("../src/config.js");
     expect(loaded.config.INJECTION_DETECTION_MODE).toBe("llm_canary");
     expect(loaded.config.LLM_CANARY_DEBUG_LOGS).toBe(false);
+    expect(loaded.config.OPENAI_CANARY_MODEL).toBeUndefined();
+  });
+
+  it("accepts a dedicated canary model separate from chat model aliases", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("PII_ENCRYPTION_KEY", "local-demo-pii-encryption-key-32b");
+    vi.stubEnv("OPENAI_CANARY_MODEL", "small-canary-model");
+    vi.stubEnv("OPENAI_MODEL_ALIASES", '{"gpt-4o":"larger-chat-model"}');
+
+    const loaded = await import("../src/config.js");
+    expect(loaded.config.OPENAI_CANARY_MODEL).toBe("small-canary-model");
+    expect(loaded.config.modelAliases).toEqual({ "gpt-4o": "larger-chat-model" });
   });
 });

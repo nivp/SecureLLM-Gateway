@@ -17,6 +17,7 @@ const mockedConfig = vi.hoisted(() => ({
   LLM_CANARY_DEBUG_LOGS: false,
   OPENAI_API_KEY: "test-provider-key",
   OPENAI_BASE_URL: undefined as string | undefined,
+  OPENAI_CANARY_MODEL: "canary-test-model" as string | undefined,
   OPENAI_MODEL_ALIASES: undefined as string | undefined,
   PII_ENCRYPTION_KEY: "test-pii-encryption-key-32-bytes",
   modelAliases: {},
@@ -79,6 +80,7 @@ describe("app routes", () => {
     vi.clearAllMocks();
     mockedConfig.INJECTION_DETECTION_MODE = "classic";
     mockedConfig.LLM_CANARY_DEBUG_LOGS = false;
+    mockedConfig.OPENAI_CANARY_MODEL = "canary-test-model";
     vi.spyOn(logger, "warn").mockImplementation(() => undefined);
     providerMocks.createChatCompletion.mockResolvedValue("safe response");
     providerMocks.createPromptGuardCompletion.mockResolvedValue("ok");
@@ -141,7 +143,7 @@ describe("app routes", () => {
       });
 
     expect(providerMocks.createPromptGuardCompletion).toHaveBeenCalledWith({
-      model: "gpt-4o",
+      model: "canary-test-model",
       messages: [{ role: "user", content: "Hello" }]
     });
     expect(providerMocks.createChatCompletion).toHaveBeenCalled();
@@ -149,6 +151,24 @@ describe("app routes", () => {
       expect.objectContaining({ incomingMessages: expect.any(Array), canaryOutput: expect.any(String) }),
       "llm canary debug trace"
     );
+  });
+
+  it("falls back to the resolved chat provider model when no canary model is configured", async () => {
+    mockedConfig.INJECTION_DETECTION_MODE = "llm_canary";
+    mockedConfig.OPENAI_CANARY_MODEL = undefined;
+    mockKey("client-key", "client");
+    const app = createApp(redisMock() as never);
+
+    await request(app)
+      .post("/v1/chat")
+      .set("x-api-key", "client-key")
+      .send({ model: "gpt-4o", messages: [{ role: "user", content: "Hello" }] })
+      .expect(200);
+
+    expect(providerMocks.createPromptGuardCompletion).toHaveBeenCalledWith({
+      model: "gpt-4o",
+      messages: [{ role: "user", content: "Hello" }]
+    });
   });
 
   it("logs incoming messages and canary output in llm_canary mode when debug logs are enabled", async () => {
@@ -167,7 +187,7 @@ describe("app routes", () => {
     expect(logger.warn).toHaveBeenCalledWith(
       expect.objectContaining({
         correlationId: expect.any(String),
-        model: "gpt-4o",
+        model: "canary-test-model",
         incomingMessages: [{ role: "user", content: "debug this message" }],
         canaryOutput: "ok"
       }),
@@ -194,7 +214,7 @@ describe("app routes", () => {
     expect(logger.warn).toHaveBeenCalledWith(
       expect.objectContaining({
         correlationId: expect.any(String),
-        model: "gpt-4o",
+        model: "canary-test-model",
         incomingMessages: [{ role: "user", content: "debug empty canary" }],
         canaryError: "LLM canary provider returned an empty response"
       }),

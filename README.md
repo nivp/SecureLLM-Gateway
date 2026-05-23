@@ -33,6 +33,7 @@ docker compose exec ollama ollama pull gpt-oss:20b
 - `CLIENT_API_KEY`, `ADMIN_API_KEY`: demo keys consumed by `npm run seed:keys`.
 - `OPENAI_API_KEY`: provider key. Use a real OpenAI key for OpenAI, or `ollama` for local Ollama compatibility.
 - `OPENAI_BASE_URL`: optional OpenAI-compatible endpoint, for example `http://ollama:11434/v1`.
+- `OPENAI_CANARY_MODEL`: optional provider model used only by the `llm_canary` guard. If unset outside Compose, the canary falls back to the request's resolved provider model. In Compose it defaults to `gpt-oss:20b`; override it when you want a smaller or more injection-sensitive guard model.
 - `OPENAI_MODEL_ALIASES`: JSON map from public request model to provider model, for example `{"gpt-4o":"gpt-oss:20b"}`.
 - `PII_ENCRYPTION_KEY`: secret used to encrypt reversible PII token mappings in audit records. Production startup rejects missing or placeholder values.
 
@@ -69,16 +70,20 @@ PowerShell:
 ```powershell
 $env:INJECTION_DETECTION_MODE = "llm_canary"
 $env:LLM_CANARY_DEBUG_LOGS = "true"
+$env:OPENAI_CANARY_MODEL = "gpt-oss:20b"
 docker compose up --build -d api
 Remove-Item Env:\INJECTION_DETECTION_MODE
 Remove-Item Env:\LLM_CANARY_DEBUG_LOGS
+Remove-Item Env:\OPENAI_CANARY_MODEL
 ```
 
 Bash:
 
 ```bash
-INJECTION_DETECTION_MODE=llm_canary LLM_CANARY_DEBUG_LOGS=true docker compose up --build -d api
+INJECTION_DETECTION_MODE=llm_canary LLM_CANARY_DEBUG_LOGS=true OPENAI_CANARY_MODEL=gpt-oss:20b docker compose up --build -d api
 ```
+
+`OPENAI_CANARY_MODEL` controls only the canary call. The user's requested model still resolves through `OPENAI_MODEL_ALIASES`, so you can test a smaller guard model while leaving normal chat on a larger model.
 
 Send a normal prompt:
 
@@ -140,7 +145,51 @@ The original Appendix A should not be pasted wholesale into AI tools. Add saniti
 ]
 ```
 
-The unit tests automatically load this file. Keep the original appendix out of prompts and paste only into the local fixture.
+The unit tests validate this file's schema. Keep the original appendix out of prompts and paste only into the local fixture.
+
+## Test Output
+
+The default test command runs unit and mocked integration tests with the standard Vitest summary:
+
+```bash
+npm test
+```
+
+For local watch mode:
+
+```bash
+npm run test:watch
+```
+
+Rendered HTML reports are reserved for live canary integration runs that exercise the deployed Compose API and parse API logs for canary input/output traces.
+
+```powershell
+npm run test:live:canary
+```
+
+Optional script parameters:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/runLiveCanaryReport.ps1 -Model gpt-oss:20b -SkipPull -NoBuild
+```
+
+The script starts the stack with canary debug logs, sets `OPENAI_CANARY_MODEL` to `-Model`, pulls that model unless `-SkipPull` is set, seeds demo API keys, runs the live canary tests, renders `test-results.html`, writes `.test-artifacts/live-canary-traces.json`, and restores temporary environment variables.
+
+For a full adversarial fixture run against the deployed API and the actual canary LLM:
+
+```powershell
+npm run test:adversarial:canary
+```
+
+This reads `test/fixtures/adversarial-cases.json`, sends every case to the running API, parses `docker compose logs api` for the canary trace, and writes `adversarial-canary-report.html`. Each row shows the user input, expected result, actual API response, canary output/error, and pass/fail status.
+
+Optional parameters:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/runAdversarialCanaryReport.ps1 -CasesFile test/fixtures/adversarial-cases.json -ReportPath adversarial-canary-report.html -SkipPull -NoBuild
+```
+
+Use `-Model <ollama-model-name>` on that script to choose the canary model for the run; it sets `OPENAI_CANARY_MODEL` before Compose starts the API.
 
 ## Known Limitations
 
