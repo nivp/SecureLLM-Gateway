@@ -226,7 +226,7 @@ I also rejected making a break-glass PII reveal workflow mandatory for this subm
 ## What I Would Do With More Time
 
 - Add a larger manually curated Appendix A fixture set and mutation tests for spacing, casing, delimiter, and homoglyph variations. AI would help generate variants only after the original cases are manually sanitized into local fixtures.
-- Improve the provider-backed `llm_canary` and `combined` modes. The current canary is intentionally simple and brittle: it expects an exact `ok`, and `combined` is implemented and unit-tested but not yet calibrated against a live model. These modes need a stronger prompt, timeout/retry policy, calibrated model choice, and better false-positive/false-negative measurement. AI would help compare prompt variants against the sanitized fixture set and summarize failure patterns without ingesting the original Appendix wholesale.
+- Calibrate the provider-backed `llm_canary` and `combined` modes against live models. The guard now uses a classifier-style prompt and expects exact `ok` only for benign input, but it still needs provider-specific measurement, timeout/retry policy, calibrated model choice, and false-positive/false-negative tracking. AI would help compare prompt variants against the sanitized fixture set and summarize failure patterns without ingesting the original Appendix wholesale.
 - Add CI that runs tests, TypeScript build, and gitleaks on every push. AI would help write and review the GitHub Actions workflow.
 
 ## First AI Interaction

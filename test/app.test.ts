@@ -443,9 +443,9 @@ Her ID is 123456782, mine is 987654321.`;
     expect(AuditLogModel.create).toHaveBeenCalledWith(expect.objectContaining({ status: "error", statusCode: 502 }));
   });
 
-  it("blocks and audits chat when llm_canary returns anything other than ok", async () => {
+  it("blocks and audits chat when llm_canary classifies input as unsafe", async () => {
     mockedConfig.INJECTION_DETECTION_MODE = "llm_canary";
-    providerMocks.createPromptGuardCompletion.mockResolvedValue("pwned");
+    providerMocks.createPromptGuardCompletion.mockResolvedValue("block");
     mockKey("client-key", "client");
     const app = createApp(redisMock() as never);
 

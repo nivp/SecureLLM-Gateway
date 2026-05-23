@@ -23,7 +23,7 @@ export async function detectPromptInjectionWithLlmCanary(
     {
       type: "prompt_injection",
       ruleId: "llm-canary-override",
-      message: "LLM canary did not return the required ok response",
+      message: "LLM canary classified the input as suspicious or did not return the required ok response",
       sample: reply.slice(0, 160)
     }
   ];
