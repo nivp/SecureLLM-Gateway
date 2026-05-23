@@ -2,6 +2,7 @@ import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app.js";
+import { logger } from "../src/logger.js";
 import { ApiKeyModel } from "../src/models/ApiKey.js";
 import { AuditLogModel } from "../src/models/AuditLog.js";
 import { hashApiKey, keyIdFor } from "../src/security/hash.js";
@@ -13,6 +14,7 @@ const mockedConfig = vi.hoisted(() => ({
   MONGODB_URI: "mongodb://localhost:27017/securellm-test",
   REDIS_URL: "redis://localhost:6379",
   INJECTION_DETECTION_MODE: "classic" as "classic" | "llm_canary",
+  LLM_CANARY_DEBUG_LOGS: false,
   OPENAI_API_KEY: "test-provider-key",
   OPENAI_BASE_URL: undefined as string | undefined,
   OPENAI_MODEL_ALIASES: undefined as string | undefined,
@@ -76,6 +78,8 @@ describe("app routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedConfig.INJECTION_DETECTION_MODE = "classic";
+    mockedConfig.LLM_CANARY_DEBUG_LOGS = false;
+    vi.spyOn(logger, "warn").mockImplementation(() => undefined);
     providerMocks.createChatCompletion.mockResolvedValue("safe response");
     providerMocks.createPromptGuardCompletion.mockResolvedValue("ok");
     vi.mocked(AuditLogModel.create).mockResolvedValue({} as never);
@@ -141,6 +145,34 @@ describe("app routes", () => {
       messages: [{ role: "user", content: "Hello" }]
     });
     expect(providerMocks.createChatCompletion).toHaveBeenCalled();
+    expect(logger.warn).not.toHaveBeenCalledWith(
+      expect.objectContaining({ incomingMessages: expect.any(Array), canaryOutput: expect.any(String) }),
+      "llm canary debug trace"
+    );
+  });
+
+  it("logs incoming messages and canary output in llm_canary mode when debug logs are enabled", async () => {
+    mockedConfig.INJECTION_DETECTION_MODE = "llm_canary";
+    mockedConfig.LLM_CANARY_DEBUG_LOGS = true;
+    providerMocks.createPromptGuardCompletion.mockResolvedValue("ok");
+    mockKey("client-key", "client");
+    const app = createApp(redisMock() as never);
+
+    await request(app)
+      .post("/v1/chat")
+      .set("x-api-key", "client-key")
+      .send({ model: "gpt-4o", messages: [{ role: "user", content: "debug this message" }] })
+      .expect(200);
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        correlationId: expect.any(String),
+        model: "gpt-4o",
+        incomingMessages: [{ role: "user", content: "debug this message" }],
+        canaryOutput: "ok"
+      }),
+      "llm canary debug trace"
+    );
   });
 
   it("blocks and audits chat when llm_canary returns anything other than ok", async () => {

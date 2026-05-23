@@ -28,7 +28,8 @@ docker compose exec ollama ollama pull gpt-oss:20b
 
 - `MONGODB_URI`: Mongo connection string.
 - `REDIS_URL`: Redis connection string.
-- `INJECTION_DETECTION_MODE`: `classic` for local regex/signature detection, or `llm_canary` for the provider-backed canary check that expects exactly `ok`.
+- `INJECTION_DETECTION_MODE`: `llm_canary` by default for the provider-backed canary check that expects exactly `ok`, or `classic` for local regex/signature detection.
+- `LLM_CANARY_DEBUG_LOGS`: set to `true` to log inbound chat messages and the canary LLM output for debugging. Leave `false` outside local debugging because this can expose user input in API logs.
 - `CLIENT_API_KEY`, `ADMIN_API_KEY`: demo keys consumed by `npm run seed:keys`.
 - `OPENAI_API_KEY`: provider key. Use a real OpenAI key for OpenAI, or `ollama` for local Ollama compatibility.
 - `OPENAI_BASE_URL`: optional OpenAI-compatible endpoint, for example `http://ollama:11434/v1`.
@@ -61,20 +62,22 @@ docker compose exec ollama ollama pull gpt-oss:20b
 docker compose exec -e CLIENT_API_KEY=client-local-dev-key -e ADMIN_API_KEY=admin-local-dev-key api node dist/scripts/seedKeys.js
 ```
 
-To test the LLM canary detector, restart the API with `INJECTION_DETECTION_MODE=llm_canary`.
+The default mode is `llm_canary`. To make it explicit, or to enable verbose canary debugging, restart the API with these environment variables.
 
 PowerShell:
 
 ```powershell
 $env:INJECTION_DETECTION_MODE = "llm_canary"
+$env:LLM_CANARY_DEBUG_LOGS = "true"
 docker compose up --build -d api
 Remove-Item Env:\INJECTION_DETECTION_MODE
+Remove-Item Env:\LLM_CANARY_DEBUG_LOGS
 ```
 
 Bash:
 
 ```bash
-INJECTION_DETECTION_MODE=llm_canary docker compose up --build -d api
+INJECTION_DETECTION_MODE=llm_canary LLM_CANARY_DEBUG_LOGS=true docker compose up --build -d api
 ```
 
 Send a normal prompt:
@@ -100,6 +103,8 @@ In `llm_canary` mode, a canary response other than `ok` blocks the request with 
 ```bash
 curl.exe -s "http://localhost:3000/v1/audit?limit=20" -H "x-api-key: admin-local-dev-key"
 ```
+
+When `LLM_CANARY_DEBUG_LOGS=true`, the API logs include a `llm canary debug trace` entry with `incomingMessages` and `canaryOutput`.
 
 ## Security Architecture
 

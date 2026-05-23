@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { sha256Json, writeAudit } from "../audit.js";
 import { config } from "../config.js";
+import { logger } from "../logger.js";
 import { ProviderUnavailableError, createPromptGuardCompletion } from "../provider/openAiProvider.js";
 import { detectPromptInjection } from "../security/injectionDetector.js";
 import { detectPromptInjectionWithLlmCanary } from "../security/llmCanaryInjectionDetector.js";
@@ -15,12 +16,26 @@ export function promptInjectionMiddleware() {
     try {
       threats =
         config.INJECTION_DETECTION_MODE === "llm_canary"
-          ? await detectPromptInjectionWithLlmCanary(messages, (guardMessages) =>
-              createPromptGuardCompletion({
+          ? await detectPromptInjectionWithLlmCanary(messages, async (guardMessages) => {
+              const canaryOutput = await createPromptGuardCompletion({
                 model: req.validatedChat?.providerModel ?? "",
                 messages: guardMessages
-              })
-            )
+              });
+
+              if (config.LLM_CANARY_DEBUG_LOGS) {
+                logger.warn(
+                  {
+                    correlationId: req.id,
+                    model: req.validatedChat?.providerModel,
+                    incomingMessages: guardMessages,
+                    canaryOutput
+                  },
+                  "llm canary debug trace"
+                );
+              }
+
+              return canaryOutput;
+            })
           : detectPromptInjection(messages);
     } catch (error) {
       if (config.INJECTION_DETECTION_MODE !== "llm_canary") {
