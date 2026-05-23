@@ -1,11 +1,19 @@
 import OpenAI from "openai";
 import { config, providerReady } from "../config.js";
+import { logger } from "../logger.js";
 import type { ChatMessage } from "../types.js";
 
 export class ProviderUnavailableError extends Error {
   constructor(message = "provider_unavailable") {
     super(message);
     this.name = "ProviderUnavailableError";
+  }
+}
+
+export class ProviderEmptyResponseError extends Error {
+  constructor(message = "provider_empty_response") {
+    super(message);
+    this.name = "ProviderEmptyResponseError";
   }
 }
 
@@ -28,7 +36,8 @@ export async function createPromptGuardCompletion(params: { model: string; messa
 
   return createCompletion({
     model: params.model,
-    maxTokens: 8,
+    maxTokens: 256,
+    purpose: "llm_canary",
     messages: [
       { role: "system", content: "Reply only with ok." },
       { role: "user", content: inspectedContent }
@@ -40,6 +49,7 @@ async function createCompletion(params: {
   model: string;
   messages: ChatMessage[];
   maxTokens: number;
+  purpose?: "chat" | "llm_canary";
 }): Promise<string> {
   if (!providerReady()) {
     throw new ProviderUnavailableError("OPENAI_API_KEY is not configured");
@@ -57,5 +67,23 @@ async function createCompletion(params: {
     temperature: 0
   });
 
-  return response.choices[0]?.message?.content ?? "";
+  const content = response.choices[0]?.message?.content ?? "";
+  if (config.LLM_CANARY_DEBUG_LOGS && params.purpose === "llm_canary") {
+    logger.warn(
+      {
+        model: params.model,
+        maxTokens: params.maxTokens,
+        finishReason: response.choices[0]?.finish_reason,
+        content,
+        usage: response.usage
+      },
+      "llm canary provider response"
+    );
+  }
+
+  if (params.purpose === "llm_canary" && content.trim().length === 0) {
+    throw new ProviderEmptyResponseError("LLM canary provider returned an empty response");
+  }
+
+  return content;
 }

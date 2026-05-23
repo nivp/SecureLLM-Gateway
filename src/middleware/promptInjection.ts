@@ -17,24 +17,39 @@ export function promptInjectionMiddleware() {
       threats =
         config.INJECTION_DETECTION_MODE === "llm_canary"
           ? await detectPromptInjectionWithLlmCanary(messages, async (guardMessages) => {
-              const canaryOutput = await createPromptGuardCompletion({
-                model: req.validatedChat?.providerModel ?? "",
-                messages: guardMessages
-              });
+              try {
+                const canaryOutput = await createPromptGuardCompletion({
+                  model: req.validatedChat?.providerModel ?? "",
+                  messages: guardMessages
+                });
 
-              if (config.LLM_CANARY_DEBUG_LOGS) {
-                logger.warn(
-                  {
-                    correlationId: req.id,
-                    model: req.validatedChat?.providerModel,
-                    incomingMessages: guardMessages,
-                    canaryOutput
-                  },
-                  "llm canary debug trace"
-                );
+                if (config.LLM_CANARY_DEBUG_LOGS) {
+                  logger.warn(
+                    {
+                      correlationId: req.id,
+                      model: req.validatedChat?.providerModel,
+                      incomingMessages: guardMessages,
+                      canaryOutput
+                    },
+                    "llm canary debug trace"
+                  );
+                }
+
+                return canaryOutput;
+              } catch (error) {
+                if (config.LLM_CANARY_DEBUG_LOGS) {
+                  logger.warn(
+                    {
+                      correlationId: req.id,
+                      model: req.validatedChat?.providerModel,
+                      incomingMessages: guardMessages,
+                      canaryError: error instanceof Error ? error.message : "unknown_canary_error"
+                    },
+                    "llm canary debug trace"
+                  );
+                }
+                throw error;
               }
-
-              return canaryOutput;
             })
           : detectPromptInjection(messages);
     } catch (error) {

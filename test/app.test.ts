@@ -175,6 +175,34 @@ describe("app routes", () => {
     );
   });
 
+  it("returns provider_error and logs context when llm_canary provider returns no usable output", async () => {
+    mockedConfig.INJECTION_DETECTION_MODE = "llm_canary";
+    mockedConfig.LLM_CANARY_DEBUG_LOGS = true;
+    providerMocks.createPromptGuardCompletion.mockRejectedValue(new Error("LLM canary provider returned an empty response"));
+    mockKey("client-key", "client");
+    const app = createApp(redisMock() as never);
+
+    await request(app)
+      .post("/v1/chat")
+      .set("x-api-key", "client-key")
+      .send({ model: "gpt-4o", messages: [{ role: "user", content: "debug empty canary" }] })
+      .expect(502)
+      .expect((res) => {
+        expect(res.body).toEqual({ error: "provider_error" });
+      });
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        correlationId: expect.any(String),
+        model: "gpt-4o",
+        incomingMessages: [{ role: "user", content: "debug empty canary" }],
+        canaryError: "LLM canary provider returned an empty response"
+      }),
+      "llm canary debug trace"
+    );
+    expect(AuditLogModel.create).toHaveBeenCalledWith(expect.objectContaining({ status: "error", statusCode: 502 }));
+  });
+
   it("blocks and audits chat when llm_canary returns anything other than ok", async () => {
     mockedConfig.INJECTION_DETECTION_MODE = "llm_canary";
     providerMocks.createPromptGuardCompletion.mockResolvedValue("pwned");

@@ -105,6 +105,7 @@ curl.exe -s "http://localhost:3000/v1/audit?limit=20" -H "x-api-key: admin-local
 ```
 
 When `LLM_CANARY_DEBUG_LOGS=true`, the API logs include a `llm canary debug trace` entry with `incomingMessages` and `canaryOutput`.
+If the provider returns an empty canary response, the gateway treats it as a provider failure (`502`) instead of a detected attack. With debug logs enabled, the API logs also include `llm canary provider response` with the finish reason and usage metadata. This is useful for local reasoning models such as `gpt-oss:20b`, where too-small token budgets can produce empty final content.
 
 ## Security Architecture
 
