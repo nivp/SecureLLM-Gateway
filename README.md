@@ -73,18 +73,6 @@ Bash:
 INJECTION_DETECTION_MODE=llm_canary LLM_CANARY_DEBUG_LOGS=true OPENAI_CANARY_MODEL=gpt-oss:20b docker compose up --build -d api
 ```
 
-PowerShell variant:
-
-```powershell
-$env:INJECTION_DETECTION_MODE = "llm_canary"
-$env:LLM_CANARY_DEBUG_LOGS = "true"
-$env:OPENAI_CANARY_MODEL = "gpt-oss:20b"
-docker compose up --build -d api
-Remove-Item Env:\INJECTION_DETECTION_MODE
-Remove-Item Env:\LLM_CANARY_DEBUG_LOGS
-Remove-Item Env:\OPENAI_CANARY_MODEL
-```
-
 `OPENAI_CANARY_MODEL` controls only the canary call. The user's requested model still resolves through `OPENAI_MODEL_ALIASES`, so you can test a smaller guard model while leaving normal chat on a larger model.
 
 Send a normal prompt:
@@ -247,13 +235,6 @@ ADVERSARIAL_REPORT_PATH=adversarial-llm_canary-report.html \
 ADVERSARIAL_JSON_PATH=.test-artifacts/adversarial-llm_canary-results.json \
 ADVERSARIAL_MODE=llm_canary \
 npx tsx scripts/runAdversarialCases.ts
-```
-
-PowerShell variants:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/runAdversarialClassicReport.ps1 -CasesFile test/fixtures/adversarial-cases.json -ReportPath adversarial-classic-report.html -Model gpt-oss:20b -SkipPull -NoBuild
-powershell -ExecutionPolicy Bypass -File scripts/runAdversarialCanaryReport.ps1 -CasesFile test/fixtures/adversarial-cases.json -ReportPath adversarial-llm_canary-report.html -Model llama3.2:1b -SkipPull -NoBuild
 ```
 
 For the classic script, `-Model` is the chat model pulled for the benign control. For the canary script, `-Model` is also assigned to `OPENAI_CANARY_MODEL` before Compose starts the API.
