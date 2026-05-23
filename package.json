@@ -9,7 +9,7 @@
     "start": "node dist/src/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:live:canary": "powershell -ExecutionPolicy Bypass -File scripts/runLiveCanaryReport.ps1",
+    "test:adversarial:classic": "powershell -ExecutionPolicy Bypass -File scripts/runAdversarialClassicReport.ps1",
     "test:adversarial:canary": "powershell -ExecutionPolicy Bypass -File scripts/runAdversarialCanaryReport.ps1",
     "seed:keys": "tsx scripts/seedKeys.ts",
     "lint:secrets": ".\\tools\\gitleaks\\gitleaks.exe dir . --config .gitleaks.toml --no-banner"

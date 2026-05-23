@@ -4,7 +4,8 @@ coverage/
 tools/gitleaks/
 test-results.json
 test-results.html
-adversarial-canary-report.html
+adversarial-classic-report.html
+adversarial-llm_canary-report.html
 .test-artifacts/
 .env
 .env.*

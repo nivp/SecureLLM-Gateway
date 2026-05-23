@@ -4,7 +4,7 @@ param(
   [string]$AdminApiKey = "admin-local-dev-key",
   [string]$Model = "gpt-oss:20b",
   [string]$CasesFile = "test/fixtures/adversarial-cases.json",
-  [string]$ReportPath = "adversarial-llm_canary-report.html",
+  [string]$ReportPath = "adversarial-classic-report.html",
   [switch]$SkipPull,
   [switch]$NoBuild
 )
@@ -34,14 +34,12 @@ $previousCases = [Environment]::GetEnvironmentVariable("ADVERSARIAL_CASES_FILE",
 $previousReport = [Environment]::GetEnvironmentVariable("ADVERSARIAL_REPORT_PATH", "Process")
 $previousJson = [Environment]::GetEnvironmentVariable("ADVERSARIAL_JSON_PATH", "Process")
 $previousAdversarialMode = [Environment]::GetEnvironmentVariable("ADVERSARIAL_MODE", "Process")
-$previousCanaryModel = [Environment]::GetEnvironmentVariable("OPENAI_CANARY_MODEL", "Process")
 
 try {
-  $env:INJECTION_DETECTION_MODE = "llm_canary"
-  $env:LLM_CANARY_DEBUG_LOGS = "true"
-  $env:OPENAI_CANARY_MODEL = $Model
+  $env:INJECTION_DETECTION_MODE = "classic"
+  $env:LLM_CANARY_DEBUG_LOGS = "false"
 
-  Invoke-Step "Starting Docker Compose stack with canary debug logs" {
+  Invoke-Step "Starting Docker Compose stack in classic detection mode" {
     if ($NoBuild) {
       docker compose up -d
     } else {
@@ -50,7 +48,7 @@ try {
   }
 
   if (-not $SkipPull) {
-    Invoke-Step "Ensuring Ollama model is available: $Model" {
+    Invoke-Step "Ensuring Ollama chat model is available: $Model" {
       docker compose exec ollama ollama pull $Model
     }
   }
@@ -67,16 +65,16 @@ try {
   $env:LIVE_ADMIN_API_KEY = $AdminApiKey
   $env:ADVERSARIAL_CASES_FILE = $CasesFile
   $env:ADVERSARIAL_REPORT_PATH = $ReportPath
-  $env:ADVERSARIAL_JSON_PATH = ".test-artifacts/adversarial-llm_canary-results.json"
-  $env:ADVERSARIAL_MODE = "llm_canary"
+  $env:ADVERSARIAL_JSON_PATH = ".test-artifacts/adversarial-classic-results.json"
+  $env:ADVERSARIAL_MODE = "classic"
 
-  Invoke-Step "Running adversarial llm_canary cases" {
+  Invoke-Step "Running adversarial classic cases" {
     & ".\node_modules\.bin\tsx.cmd" scripts/runAdversarialCases.ts
   }
 
   Write-Host ""
-  Write-Host "Adversarial llm_canary report written to $ReportPath" -ForegroundColor Green
-  Write-Host "Raw results written to .test-artifacts/adversarial-llm_canary-results.json" -ForegroundColor Green
+  Write-Host "Adversarial classic report written to $ReportPath" -ForegroundColor Green
+  Write-Host "Raw results written to .test-artifacts/adversarial-classic-results.json" -ForegroundColor Green
 } finally {
   if ($null -eq $previousDebugLogs) { Remove-Item Env:\LLM_CANARY_DEBUG_LOGS -ErrorAction SilentlyContinue } else { $env:LLM_CANARY_DEBUG_LOGS = $previousDebugLogs }
   if ($null -eq $previousDetectionMode) { Remove-Item Env:\INJECTION_DETECTION_MODE -ErrorAction SilentlyContinue } else { $env:INJECTION_DETECTION_MODE = $previousDetectionMode }
@@ -87,5 +85,4 @@ try {
   if ($null -eq $previousReport) { Remove-Item Env:\ADVERSARIAL_REPORT_PATH -ErrorAction SilentlyContinue } else { $env:ADVERSARIAL_REPORT_PATH = $previousReport }
   if ($null -eq $previousJson) { Remove-Item Env:\ADVERSARIAL_JSON_PATH -ErrorAction SilentlyContinue } else { $env:ADVERSARIAL_JSON_PATH = $previousJson }
   if ($null -eq $previousAdversarialMode) { Remove-Item Env:\ADVERSARIAL_MODE -ErrorAction SilentlyContinue } else { $env:ADVERSARIAL_MODE = $previousAdversarialMode }
-  if ($null -eq $previousCanaryModel) { Remove-Item Env:\OPENAI_CANARY_MODEL -ErrorAction SilentlyContinue } else { $env:OPENAI_CANARY_MODEL = $previousCanaryModel }
 }

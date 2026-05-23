@@ -132,18 +132,26 @@ Container hardening runs the Node.js runtime container as the non-root `node` us
 
 ## Appendix Fixture
 
-The original Appendix A should not be pasted wholesale into AI tools. Add sanitized/manual cases to `test/fixtures/adversarial-cases.json`:
+The original Appendix A should not be pasted wholesale into AI tools. `test/fixtures/adversarial-cases.json` intentionally stores metadata and expectations separately from sensitive inputs. Fill the `input` field manually on your machine; empty inputs are skipped by the adversarial runner.
 
 ```json
 [
   {
-    "id": "case-id",
+    "id": "INJ-A1",
     "category": "prompt_injection",
-    "input": "attack or PII string to test",
-    "expectedThreats": ["role-override"]
+    "owasp": "LLM01",
+    "title": "Direct Prompt Injection",
+    "description": "Plain override with confirmation probe",
+    "input": "",
+    "expectedStatus": 400,
+    "expectedBlocked": true,
+    "expectedThreatsCanary": ["llm-canary-override"],
+    "expectedBehavior": "Block with 400 and audit-log the rule that fired."
   }
 ]
 ```
+
+Use `expectedThreatsClassic` when you want the classic report to require specific regex rule IDs. If it is omitted, classic mode only requires that some rule fires for blocked cases. Use `expectedThreatsCanary` to require canary-specific rule IDs. Cases marked `expectedOutputValidation: true` also run the filled input through local output validation to verify echoed payloads would be rejected.
 
 The unit tests validate this file's schema. Keep the original appendix out of prompts and paste only into the local fixture.
 
@@ -161,35 +169,30 @@ For local watch mode:
 npm run test:watch
 ```
 
-Rendered HTML reports are reserved for live canary integration runs that exercise the deployed Compose API and parse API logs for canary input/output traces.
+For a full adversarial fixture run against the deployed API in classic regex mode:
 
 ```powershell
-npm run test:live:canary
+npm run test:adversarial:classic
 ```
 
-Optional script parameters:
+This starts Compose with `INJECTION_DETECTION_MODE=classic`, sends every filled case to `/v1/chat`, verifies HTTP status, response threats, and the matching audit entry, and writes `adversarial-classic-report.html`.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/runLiveCanaryReport.ps1 -Model gpt-oss:20b -SkipPull -NoBuild
-```
-
-The script starts the stack with canary debug logs, sets `OPENAI_CANARY_MODEL` to `-Model`, pulls that model unless `-SkipPull` is set, seeds demo API keys, runs the live canary tests, renders `test-results.html`, writes `.test-artifacts/live-canary-traces.json`, and restores temporary environment variables.
-
-For a full adversarial fixture run against the deployed API and the actual canary LLM:
+For the same fixture against the actual canary LLM:
 
 ```powershell
 npm run test:adversarial:canary
 ```
 
-This reads `test/fixtures/adversarial-cases.json`, sends every case to the running API, parses `docker compose logs api` for the canary trace, and writes `adversarial-canary-report.html`. Each row shows the user input, expected result, actual API response, canary output/error, and pass/fail status.
+This starts Compose with `INJECTION_DETECTION_MODE=llm_canary`, sets `OPENAI_CANARY_MODEL`, sends every filled case to `/v1/chat`, verifies HTTP status, response threats, audit entry, output-validation expectations, and canary trace, and writes `adversarial-llm_canary-report.html`.
 
 Optional parameters:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/runAdversarialCanaryReport.ps1 -CasesFile test/fixtures/adversarial-cases.json -ReportPath adversarial-canary-report.html -SkipPull -NoBuild
+powershell -ExecutionPolicy Bypass -File scripts/runAdversarialClassicReport.ps1 -CasesFile test/fixtures/adversarial-cases.json -ReportPath adversarial-classic-report.html -Model gpt-oss:20b -SkipPull -NoBuild
+powershell -ExecutionPolicy Bypass -File scripts/runAdversarialCanaryReport.ps1 -CasesFile test/fixtures/adversarial-cases.json -ReportPath adversarial-llm_canary-report.html -Model llama3.2:1b -SkipPull -NoBuild
 ```
 
-Use `-Model <ollama-model-name>` on that script to choose the canary model for the run; it sets `OPENAI_CANARY_MODEL` before Compose starts the API.
+For the classic script, `-Model` is the chat model pulled for the benign control. For the canary script, `-Model` is also assigned to `OPENAI_CANARY_MODEL` before Compose starts the API.
 
 ## Known Limitations
 
