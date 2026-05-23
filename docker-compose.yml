@@ -10,6 +10,7 @@ services:
       PORT: 3000
       MONGODB_URI: mongodb://mongo:27017/securellm
       REDIS_URL: redis://redis:6379
+      INJECTION_DETECTION_MODE: ${INJECTION_DETECTION_MODE:-classic}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-ollama}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://ollama:11434/v1}
       OPENAI_MODEL_ALIASES: '${OPENAI_MODEL_ALIASES:-{"gpt-4o":"gpt-oss:20b","claude-3-5-sonnet":"gpt-oss:20b"}}'

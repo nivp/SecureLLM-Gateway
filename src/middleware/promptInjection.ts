@@ -1,11 +1,45 @@
 import type { NextFunction, Request, Response } from "express";
 import { sha256Json, writeAudit } from "../audit.js";
+import { config } from "../config.js";
+import { ProviderUnavailableError, createPromptGuardCompletion } from "../provider/openAiProvider.js";
 import { detectPromptInjection } from "../security/injectionDetector.js";
+import { detectPromptInjectionWithLlmCanary } from "../security/llmCanaryInjectionDetector.js";
+import type { Threat } from "../types.js";
 import { asyncHandler } from "./errors.js";
 
 export function promptInjectionMiddleware() {
   return asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const threats = detectPromptInjection(req.validatedChat?.messages ?? []);
+    const messages = req.validatedChat?.messages ?? [];
+    let threats: Threat[];
+
+    try {
+      threats =
+        config.INJECTION_DETECTION_MODE === "llm_canary"
+          ? await detectPromptInjectionWithLlmCanary(messages, (guardMessages) =>
+              createPromptGuardCompletion({
+                model: req.validatedChat?.providerModel ?? "",
+                messages: guardMessages
+              })
+            )
+          : detectPromptInjection(messages);
+    } catch (error) {
+      if (config.INJECTION_DETECTION_MODE !== "llm_canary") {
+        throw error;
+      }
+
+      const statusCode = error instanceof ProviderUnavailableError ? 503 : 502;
+      await writeAudit({
+        req,
+        startedAt: res.locals.startedAt as number,
+        status: "error",
+        statusCode,
+        requestHash: sha256Json(req.validatedChat),
+        error: error instanceof Error ? error.message : "unknown_llm_guard_error"
+      });
+      res.status(statusCode).json({ error: statusCode === 503 ? "provider_unavailable" : "provider_error" });
+      return;
+    }
+
     req.detectedThreats = threats;
     if (threats.length > 0) {
       await writeAudit({
