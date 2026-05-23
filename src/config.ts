@@ -2,6 +2,7 @@ import "dotenv/config";
 import { z } from "zod";
 
 const PLACEHOLDER_PII_KEYS = new Set(["replace-with-32-byte-secret", "local-demo-pii-encryption-key-32b"]);
+const MIN_PRODUCTION_PII_KEY_BYTES = 32;
 
 const envSchema = z.object({
   NODE_ENV: z.string().default("development"),
@@ -40,8 +41,15 @@ function parseAliases(raw: string | undefined): Record<string, string> {
 }
 
 const parsed = envSchema.parse(process.env);
-if (parsed.NODE_ENV === "production" && (!parsed.PII_ENCRYPTION_KEY || PLACEHOLDER_PII_KEYS.has(parsed.PII_ENCRYPTION_KEY))) {
-  throw new Error("PII_ENCRYPTION_KEY must be configured with a strong production secret");
+if (
+  parsed.NODE_ENV === "production" &&
+  (!parsed.PII_ENCRYPTION_KEY ||
+    PLACEHOLDER_PII_KEYS.has(parsed.PII_ENCRYPTION_KEY) ||
+    Buffer.byteLength(parsed.PII_ENCRYPTION_KEY, "utf8") < MIN_PRODUCTION_PII_KEY_BYTES)
+) {
+  throw new Error(
+    "PII_ENCRYPTION_KEY must be configured with a non-placeholder production secret of at least 32 bytes"
+  );
 }
 
 const modelAliases = parseAliases(parsed.OPENAI_MODEL_ALIASES);

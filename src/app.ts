@@ -27,7 +27,14 @@ export function createApp(redis: Redis): express.Express {
   app.use(pinoHttp({ logger, genReqId: (req) => (req as express.Request).id }));
 
   app.use(healthRouter(redis));
-  app.use("/v1/chat", requireAuth(), rateLimitMiddleware(redis), validateChatBody, promptInjectionMiddleware(), piiRedactionMiddleware);
+  app.use(
+    "/v1/chat",
+    requireAuth(),
+    rateLimitMiddleware(redis),
+    validateChatBody,
+    piiRedactionMiddleware,
+    promptInjectionMiddleware()
+  );
   app.use(chatRouter());
   app.use("/v1/audit", requireAuth("admin"));
   app.use(auditRouter());

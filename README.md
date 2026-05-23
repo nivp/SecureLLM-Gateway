@@ -35,7 +35,7 @@ docker compose exec ollama ollama pull gpt-oss:20b
 - `OPENAI_BASE_URL`: optional OpenAI-compatible endpoint, for example `http://ollama:11434/v1`.
 - `OPENAI_CANARY_MODEL`: optional provider model used only by the `llm_canary` guard. If unset outside Compose, the canary falls back to the request's resolved provider model. In Compose it defaults to `gpt-oss:20b`; override it when you want a smaller or more injection-sensitive guard model.
 - `OPENAI_MODEL_ALIASES`: JSON map from public request model to provider model, for example `{"gpt-4o":"gpt-oss:20b"}`.
-- `PII_ENCRYPTION_KEY`: secret used to encrypt reversible PII token mappings in audit records. Production startup rejects missing or placeholder values.
+- `PII_ENCRYPTION_KEY`: secret used to encrypt reversible PII token mappings in audit records. Production startup rejects missing, placeholder, or shorter-than-32-byte values.
 
 ## API
 
@@ -118,13 +118,13 @@ Authentication stores only salted PBKDF2 API-key hashes plus a deterministic key
 
 Rate limiting uses a Redis sorted-set sliding window keyed by API-key ID. Each key has a configurable requests-per-minute limit, defaulting to 30.
 
-Prompt-injection detection is an independent middleware with two modes. `classic` normalizes message text and matches multiple attack classes: role override, instruction hierarchy abuse, hidden prompt exfiltration, delimiter smuggling, data exfiltration, and jailbreak personas. `llm_canary` sends the inspected messages through a provider-backed canary prompt whose system instruction is `Reply only with ok.`; any response other than exactly `ok` is treated as a prompt-injection override. Blocked requests return `400` and are audit-logged; unavailable LLM guard calls fail closed with `503` or `502`.
+Prompt-injection detection is an independent middleware with two modes. `classic` normalizes message text and matches multiple attack classes: role override, instruction hierarchy abuse, hidden prompt exfiltration, delimiter smuggling, data exfiltration, and jailbreak personas. `llm_canary` sends the redacted inspected messages through a provider-backed canary prompt whose system instruction is `Reply only with ok.`; any response other than exactly `ok` is treated as a prompt-injection override. Blocked requests return `400` and are audit-logged; unavailable LLM guard calls fail closed with `503` or `502`.
 
 PII redaction runs before the provider call. It replaces emails, Israeli/international phone numbers, and Israeli national IDs with tokens such as `[PII_EMAIL_1]`. Original values are encrypted into audit metadata when `PII_ENCRYPTION_KEY` is configured, so admin audit review can reveal them without logging raw PII.
 
 Output validation treats provider output as untrusted. It blocks OpenAI-style keys, JWT-shaped strings, AWS access keys, and output that matches prompt-injection signatures.
 
-Audit logging records timestamp, API-key ID, model, request/response hashes, detected threat IDs, latency, status, HTTP status, and encrypted PII token metadata. Request and response bodies are not stored raw.
+Audit logging records timestamp, API-key ID, model, request/response hashes, detected threat IDs, latency, status, HTTP status, and encrypted PII token metadata. Request and response bodies are not stored raw. Audit write failures are logged but do not change the already-determined chat response.
 
 Secrets handling keeps provider keys and demo API keys in env vars only. `.gitleaks.toml` includes rules for common LLM and cloud secret formats.
 
@@ -167,6 +167,14 @@ For local watch mode:
 
 ```bash
 npm run test:watch
+```
+
+For static checks and formatting:
+
+```bash
+npm run lint
+npm run format:check
+npm run format
 ```
 
 For a local PII redaction report:

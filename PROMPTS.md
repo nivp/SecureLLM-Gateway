@@ -12,12 +12,17 @@ The challenge expects at least two AI tools to touch the same solution files. In
 The required second-tool pass is still pending. The intended use is to ask another AI tool to challenge the security controls and tests on the same files, especially `src/security/injectionDetector.ts`, `src/security/piiRedactor.ts`, `src/security/outputValidator.ts`, `src/middleware/auth.ts`, `src/routes/audit.ts`, and `src/config.ts`. Record exactly what that tool suggested, which files it changed, and what was rejected.
 
 ## Three Example Prompts
+
 ### Example 1 (Development)
+
 Sent to ChatGPT:
+
 ```
 I'd like to create a code quality review prompt for an agent. Please make a suggestion.
 ```
+
 Response piped to the Codex Agent:
+
 ```
 You are a senior software engineer performing a code quality review.
 
@@ -100,14 +105,17 @@ Rules:
 Verbatim prompt:
 
 > PLEASE IMPLEMENT THIS PLAN:
+>
 > # SecureLLM Gateway Plan
-> 
+>
 > ## Summary
+>
 > Build a fresh TypeScript/Express service in the empty repo that implements the challenge gateway end to end: authenticated `/v1/chat`, admin-only `/v1/audit`, `/healthz`, Mongo audit storage, Redis sliding-window rate limiting, independent security middlewares, tests, Docker, README, `.gitleaks.toml`, and `PROMPTS.md`.
-> 
+>
 > Provider integration will use the official OpenAI-style client path with configurable `OPENAI_BASE_URL`: real OpenAI when pointed at OpenAI, local Ollama when pointed at `http://ollama:11434/v1`. Ollama’s OpenAI-compatible `/v1/chat/completions` support is documented at https://docs.ollama.com/api/openai-compatibility.
-> 
+>
 > ## Key Changes
+>
 > - Create a strict TypeScript Node service using Express, Zod validation, MongoDB/Mongoose, Redis/ioredis, pino logging, Vitest, and Supertest.
 > - Implement request pipeline for `POST /v1/chat`:
 >   1. correlation ID and structured logging
@@ -130,8 +138,9 @@ Verbatim prompt:
 >   - first AI interaction is this Codex/ChatGPT session and the user’s first prompt verbatim
 >   - note sanitized handling of the challenge brief
 >   - reserve exact entries for a second AI tool security review/debugging pass on the same solution files
-> 
+>
 > ## Public Interfaces
+>
 > - `POST /v1/chat`
 >   - header: `x-api-key`
 >   - body: `{ model, messages, max_tokens }`
@@ -144,15 +153,17 @@ Verbatim prompt:
 > - `GET /healthz`
 >   - no auth
 >   - reports Mongo, Redis, and provider readiness separately
-> 
+>
 > ## Security Controls
+>
 > - Prompt injection detector will combine named regex/signature rules and normalization for role override, instruction hierarchy attacks, data exfiltration requests, delimiter/prompt-leak probes, tool/system prompt extraction, and common realistic variations.
 > - PII redaction will detect email, Israeli/international phone numbers, and Israeli national IDs; replacements use stable per-request tokens like `[PII_EMAIL_1]`.
 > - Reversibility will store original PII encrypted in Mongo audit metadata using env-provided AES key; raw PII will not be logged.
 > - Output validation will block secret-like output patterns including OpenAI-style `sk-...`, JWT-shaped strings, AWS access keys, and echoes of previously detected injection text/signatures.
 > - Secrets handling will rely only on env vars, redact logs, and include `.gitleaks.toml` plus README guidance.
-> 
+>
 > ## Test Plan
+>
 > - Unit tests for auth hashing/role enforcement, constant-time comparison path, rate limiter behavior with Redis mocked or test Redis, prompt injection detection, PII redaction/reversal, output validation, and audit record creation.
 > - Integration tests for:
 >   - missing/invalid API key
@@ -163,13 +174,13 @@ Verbatim prompt:
 >   - missing provider returns `503` while service starts
 > - Fixture-driven adversarial tests load manually supplied appendix cases from `test/fixtures/adversarial-cases.json`.
 > - Docker verification target: `docker compose up` starts service, Mongo, Redis, and optional Ollama; app remains healthy except provider readiness when no model/key is configured.
-> 
+>
 > ## Assumptions
+>
 > - The repo currently contains only `Sanitized_Task.txt`; no existing code or `Prompt.md`/`PROMPTS.md` was found.
 > - The original Appendix A will not be pasted into AI tools. The implementation will provide a documented fixture format, and the user will manually insert cases.
 > - Use npm unless implementation later discovers a repo-level package-manager constraint.
 > - Use dual provider mode: OpenAI-compatible SDK/client with `OPENAI_BASE_URL`, `OPENAI_API_KEY`, and `OPENAI_MODEL_ALIASES`; local Ollama uses a placeholder API key because Ollama ignores it.
-> 
 
 What I did with the output: used it to generate the initial TypeScript/Express service, security modules, tests, Docker files, README, and this process document.
 
@@ -184,6 +195,7 @@ Verbatim prompt:
 > Assume the reviewed system may eventually run in production and may handle sensitive data, authentication, authorization, user input, secrets, network communication, files, databases, cloud resources, containers, CI/CD pipelines, and third-party dependencies.
 >
 > Your goals are to:
+>
 > 1. Identify vulnerabilities and insecure design choices.
 > 2. Explain how each issue could realistically be exploited.
 > 3. Assess severity and likelihood.
@@ -217,6 +229,7 @@ I also rejected making a break-glass PII reveal workflow mandatory for this subm
 
 - Run a genuine second-tool review before final submission, have it touch the same solution files, and update this document with the exact tool name, prompts, accepted changes, and rejected suggestions.
 - Add a larger manually curated Appendix A fixture set and mutation tests for spacing, casing, delimiter, and homoglyph variations. AI would help generate variants only after the original cases are manually sanitized into local fixtures.
+- Improve the `llm_canary` detector. The current canary is intentionally simple and brittle: it expects an exact `ok`, does not satisfy every adversarial fixture in live-model testing, and needs a stronger prompt, timeout/retry policy, calibrated model choice, and better false-positive/false-negative measurement. AI would help compare prompt variants against the sanitized fixture set and summarize failure patterns without ingesting the original Appendix wholesale.
 - Add CI that runs tests, TypeScript build, and gitleaks on every push. AI would help write and review the GitHub Actions workflow.
 
 ## First AI Interaction

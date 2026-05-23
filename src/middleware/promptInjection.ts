@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { sha256Json, writeAudit } from "../audit.js";
+import { sha256Json, writeAuditSafe } from "../audit.js";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { ProviderUnavailableError, createPromptGuardCompletion } from "../provider/openAiProvider.js";
@@ -10,7 +10,7 @@ import { asyncHandler } from "./errors.js";
 
 export function promptInjectionMiddleware() {
   return asyncHandler(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const messages = req.validatedChat?.messages ?? [];
+    const messages = req.redactedMessages ?? req.validatedChat?.messages ?? [];
     let threats: Threat[];
 
     try {
@@ -71,12 +71,13 @@ export function promptInjectionMiddleware() {
       }
 
       const statusCode = error instanceof ProviderUnavailableError ? 503 : 502;
-      await writeAudit({
+      await writeAuditSafe({
         req,
         startedAt: res.locals.startedAt as number,
         status: "error",
         statusCode,
-        requestHash: sha256Json(req.validatedChat),
+        requestHash: sha256Json({ ...req.validatedChat, messages }),
+        piiTokens: req.redactions,
         error: error instanceof Error ? error.message : "unknown_llm_guard_error"
       });
       res.status(statusCode).json({ error: statusCode === 503 ? "provider_unavailable" : "provider_error" });
@@ -85,13 +86,14 @@ export function promptInjectionMiddleware() {
 
     req.detectedThreats = threats;
     if (threats.length > 0) {
-      await writeAudit({
+      await writeAuditSafe({
         req,
         startedAt: res.locals.startedAt as number,
         status: "blocked",
         statusCode: 400,
-        requestHash: sha256Json(req.validatedChat),
-        threats
+        requestHash: sha256Json({ ...req.validatedChat, messages }),
+        threats,
+        piiTokens: req.redactions
       });
       res.status(400).json({ error: "prompt_injection_detected", threats: threats.map((threat) => threat.ruleId) });
       return;

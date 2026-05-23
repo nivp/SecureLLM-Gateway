@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Request } from "express";
 import { config } from "./config.js";
+import { logger } from "./logger.js";
 import { AuditLogModel, type AuditStatus } from "./models/AuditLog.js";
 import { encryptValue } from "./security/piiCrypto.js";
 import type { RedactionToken, Threat } from "./types.js";
@@ -45,4 +46,20 @@ export async function writeAudit(params: {
     piiTokens: encryptedPiiTokens(params.piiTokens),
     error: params.error
   });
+}
+
+export async function writeAuditSafe(params: Parameters<typeof writeAudit>[0]): Promise<void> {
+  try {
+    await writeAudit(params);
+  } catch (error) {
+    logger.error(
+      {
+        err: error,
+        correlationId: params.req.id,
+        intendedStatus: params.status,
+        intendedStatusCode: params.statusCode
+      },
+      "failed to write audit log"
+    );
+  }
 }
