@@ -1,0 +1,110 @@
+@startuml securellm_gateway_architecture
+title SecureLLM Gateway request flow
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam sequence {
+  ArrowColor #2F4858
+  ActorBorderColor #2F4858
+  LifeLineBorderColor #7A869A
+  ParticipantBorderColor #2F4858
+  ParticipantBackgroundColor #F4F6F8
+  BoxBorderColor #D0D7DE
+}
+
+actor "Internal caller" as Caller
+participant "Express API" as API
+participant "Auth middleware" as Auth
+database "MongoDB\nApiKey + AuditLog" as Mongo
+participant "Redis\nsliding window" as Redis
+participant "Chat validation" as Validation
+participant "PII redaction" as PII
+participant "Prompt injection guard" as Guard
+participant "LLM provider\nOpenAI-compatible" as Provider
+participant "Output validator" as Output
+
+box "POST /v1/chat security pipeline" #F8FAFC
+  Caller -> API: POST /v1/chat\nx-api-key + messages
+  API -> Auth: requireAuth(client)
+  Auth -> Mongo: lookup keyId\nverify salted hash
+
+  alt missing, invalid, or unauthorized API key
+    Auth -> Mongo: write blocked audit record
+    Auth --> Caller: 401/403 error
+  else authenticated
+    Auth -> Redis: enforce per-key rate limit
+
+    alt over limit
+      Redis -> Mongo: write blocked audit record
+      Redis --> Caller: 429 rate_limited
+    else allowed by rate limit
+      Redis -> Validation: validate model, messages, max_tokens
+
+      alt invalid request body
+        Validation -> Mongo: write blocked audit record
+        Validation --> Caller: 400 invalid_request
+      else valid request
+        Validation -> PII: redact inbound messages
+        PII -> Guard: inspect redacted messages
+
+        alt INJECTION_DETECTION_MODE = classic
+          Guard -> Guard: local signature detection
+        else INJECTION_DETECTION_MODE = llm_canary
+          Guard -> Provider: classify untrusted messages
+          Provider --> Guard: exactly "ok" or finding text
+        else INJECTION_DETECTION_MODE = combined
+          Guard -> Guard: local signature detection
+          opt no local finding
+            Guard -> Provider: canary classification
+            Provider --> Guard: exactly "ok" or finding text
+          end
+        end
+
+        alt prompt injection found
+          Guard -> Mongo: write blocked audit record\nwith threat IDs + encrypted PII tokens
+          Guard --> Caller: 400 prompt_injection_detected
+        else prompt accepted
+          Guard -> Provider: create chat completion\nusing redacted messages
+          Provider --> API: assistant content
+          API -> Output: validate model output
+
+          alt unsafe output
+            Output -> Mongo: write blocked audit record\nwith response hash
+            Output --> Caller: 400 unsafe_model_output
+          else safe output
+            Output -> Mongo: write allowed audit record\nwith request/response hashes
+            Output --> Caller: 200 assistant message
+          end
+        end
+      end
+    end
+  end
+end
+
+box "Admin audit path" #FFF8E8
+  Caller -> API: GET /v1/audit?limit=...\nx-api-key
+  API -> Auth: requireAuth(admin)
+  Auth -> Mongo: verify admin API key
+
+  alt admin key accepted
+    API -> Mongo: query AuditLog records
+    opt reveal_pii=true and PII_ENCRYPTION_KEY is configured
+      API -> API: decrypt stored PII token values
+    end
+    API --> Caller: audit entries
+  else not admin
+    Auth -> Mongo: write blocked audit record
+    Auth --> Caller: 401/403 error
+  end
+end
+
+box "Health path" #EEF7EE
+  Caller -> API: GET /healthz
+  API -> Mongo: check connection
+  API -> Redis: ping
+  API -> Provider: check provider configuration
+  API --> Caller: ok or degraded status
+end
+
+@enduml

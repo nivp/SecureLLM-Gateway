@@ -114,6 +114,10 @@ If the provider returns an empty canary response, the gateway treats it as a pro
 
 ## Security Architecture
 
+![SecureLLM Gateway request flow](docs/architecture.svg)
+
+The diagram source is maintained in `docs/architecture.puml`.
+
 Authentication stores only salted PBKDF2 API-key hashes plus a deterministic key ID for lookup. Verification recomputes the hash and uses constant-time comparison. Roles are `client` and `admin`; only admins can read audit logs.
 
 Rate limiting uses a Redis sorted-set sliding window keyed by API-key ID. Each key has a configurable requests-per-minute limit, defaulting to 30.

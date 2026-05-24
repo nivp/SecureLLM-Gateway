@@ -1,0 +1,157 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="860" viewBox="0 0 1280 860" role="img" aria-labelledby="title desc">
+  <title id="title">SecureLLM Gateway request flow</title>
+  <desc id="desc">Architecture diagram showing chat, admin audit, and health request flows through authentication, Redis rate limiting, validation, PII redaction, prompt injection detection, provider calls, output validation, and MongoDB audit logging.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L8,3 z" fill="#2f4858" />
+    </marker>
+    <style>
+      .title { font: 700 26px Arial, sans-serif; fill: #172b4d; }
+      .section { font: 700 18px Arial, sans-serif; fill: #172b4d; }
+      .label { font: 600 15px Arial, sans-serif; fill: #172b4d; }
+      .small { font: 13px Arial, sans-serif; fill: #344563; }
+      .tiny { font: 12px Arial, sans-serif; fill: #505f79; }
+      .box { fill: #f4f6f8; stroke: #2f4858; stroke-width: 2; rx: 8; }
+      .store { fill: #fff8e8; stroke: #8a6d1f; stroke-width: 2; rx: 8; }
+      .external { fill: #eef7ee; stroke: #247a45; stroke-width: 2; rx: 8; }
+      .danger { fill: #fff1f0; stroke: #c9372c; stroke-width: 2; rx: 8; }
+      .panel { fill: #ffffff; stroke: #d0d7de; stroke-width: 1.5; rx: 10; }
+      .flow { stroke: #2f4858; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
+      .audit { stroke: #8a6d1f; stroke-width: 2; stroke-dasharray: 7 5; fill: none; marker-end: url(#arrow); }
+      .block { stroke: #c9372c; stroke-width: 2; stroke-dasharray: 6 5; fill: none; marker-end: url(#arrow); }
+      .muted { stroke: #7a869a; stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1280" height="860" fill="#ffffff" />
+  <text x="640" y="44" text-anchor="middle" class="title">SecureLLM Gateway Request Flow</text>
+
+  <rect x="40" y="80" width="1200" height="470" class="panel" />
+  <text x="70" y="116" class="section">POST /v1/chat security pipeline</text>
+
+  <rect x="70" y="155" width="145" height="72" class="box" />
+  <text x="142" y="184" text-anchor="middle" class="label">Internal caller</text>
+  <text x="142" y="205" text-anchor="middle" class="small">x-api-key + messages</text>
+
+  <rect x="255" y="155" width="145" height="72" class="box" />
+  <text x="328" y="184" text-anchor="middle" class="label">Express API</text>
+  <text x="328" y="205" text-anchor="middle" class="small">request context</text>
+
+  <rect x="440" y="155" width="145" height="72" class="box" />
+  <text x="512" y="184" text-anchor="middle" class="label">Auth</text>
+  <text x="512" y="205" text-anchor="middle" class="small">salted key hash</text>
+
+  <rect x="625" y="155" width="145" height="72" class="box" />
+  <text x="698" y="184" text-anchor="middle" class="label">Rate limit</text>
+  <text x="698" y="205" text-anchor="middle" class="small">sliding window</text>
+
+  <rect x="810" y="155" width="145" height="72" class="box" />
+  <text x="882" y="184" text-anchor="middle" class="label">Chat validation</text>
+  <text x="882" y="205" text-anchor="middle" class="small">model + messages</text>
+
+  <rect x="995" y="155" width="145" height="72" class="box" />
+  <text x="1068" y="184" text-anchor="middle" class="label">PII redaction</text>
+  <text x="1068" y="205" text-anchor="middle" class="small">tokenized input</text>
+
+  <path d="M215 191 H255" class="flow" />
+  <path d="M400 191 H440" class="flow" />
+  <path d="M585 191 H625" class="flow" />
+  <path d="M770 191 H810" class="flow" />
+  <path d="M955 191 H995" class="flow" />
+
+  <rect x="160" y="305" width="180" height="82" class="box" />
+  <text x="250" y="334" text-anchor="middle" class="label">Prompt guard</text>
+  <text x="250" y="355" text-anchor="middle" class="small">classic, canary, or combined</text>
+
+  <rect x="400" y="305" width="180" height="82" class="external" />
+  <text x="490" y="334" text-anchor="middle" class="label">LLM provider</text>
+  <text x="490" y="355" text-anchor="middle" class="small">guard and chat calls</text>
+
+  <rect x="640" y="305" width="180" height="82" class="box" />
+  <text x="730" y="334" text-anchor="middle" class="label">Output validator</text>
+  <text x="730" y="355" text-anchor="middle" class="small">secret + injection checks</text>
+
+  <rect x="880" y="305" width="180" height="82" class="store" />
+  <text x="970" y="334" text-anchor="middle" class="label">MongoDB</text>
+  <text x="970" y="355" text-anchor="middle" class="small">ApiKey + AuditLog</text>
+
+  <rect x="1085" y="305" width="115" height="82" class="external" />
+  <text x="1142" y="334" text-anchor="middle" class="label">Response</text>
+  <text x="1142" y="355" text-anchor="middle" class="small">200 or error</text>
+
+  <path d="M1068 227 V260 H250 V305" class="flow" />
+  <path d="M340 346 H400" class="flow" />
+  <text x="370" y="335" text-anchor="middle" class="tiny">canary/chat</text>
+  <path d="M580 346 H640" class="flow" />
+  <path d="M820 346 H880" class="audit" />
+  <path d="M1060 346 H1085" class="flow" />
+
+  <rect x="160" y="435" width="230" height="58" class="danger" />
+  <text x="275" y="459" text-anchor="middle" class="label">Blocked outcomes</text>
+  <text x="275" y="479" text-anchor="middle" class="small">auth, rate, validation, prompt, output</text>
+
+  <rect x="445" y="435" width="250" height="58" class="store" />
+  <text x="570" y="459" text-anchor="middle" class="label">Audit metadata</text>
+  <text x="570" y="479" text-anchor="middle" class="small">hashes, threats, latency, encrypted PII tokens</text>
+
+  <path d="M512 227 V250 H275 V435" class="block" />
+  <path d="M698 227 V250 H275 V435" class="block" />
+  <path d="M882 227 V250 H275 V435" class="block" />
+  <path d="M250 387 V435" class="block" />
+  <path d="M730 387 V415 H275 V435" class="block" />
+  <path d="M390 464 H445" class="audit" />
+  <path d="M695 464 H970 V387" class="audit" />
+
+  <rect x="625" y="250" width="145" height="36" class="store" />
+  <text x="698" y="273" text-anchor="middle" class="small">Redis sorted set</text>
+  <path d="M698 227 V250" class="muted" />
+
+  <path d="M512 155 V128 H970 V305" class="muted" />
+  <text x="744" y="123" text-anchor="middle" class="tiny">API key lookup and audit writes</text>
+
+  <rect x="40" y="585" width="570" height="215" class="panel" />
+  <text x="70" y="621" class="section">GET /v1/audit admin path</text>
+
+  <rect x="80" y="655" width="125" height="58" class="box" />
+  <text x="142" y="689" text-anchor="middle" class="label">Admin caller</text>
+
+  <rect x="250" y="655" width="125" height="58" class="box" />
+  <text x="312" y="680" text-anchor="middle" class="label">Auth</text>
+  <text x="312" y="699" text-anchor="middle" class="small">admin role</text>
+
+  <rect x="420" y="655" width="145" height="58" class="store" />
+  <text x="492" y="680" text-anchor="middle" class="label">AuditLog</text>
+  <text x="492" y="699" text-anchor="middle" class="small">query records</text>
+
+  <rect x="250" y="735" width="315" height="42" class="box" />
+  <text x="408" y="761" text-anchor="middle" class="small">Optional PII reveal decrypts token values with PII_ENCRYPTION_KEY</text>
+
+  <path d="M205 684 H250" class="flow" />
+  <path d="M375 684 H420" class="flow" />
+  <path d="M492 713 V735" class="muted" />
+
+  <rect x="670" y="585" width="570" height="215" class="panel" />
+  <text x="700" y="621" class="section">GET /healthz health path</text>
+
+  <rect x="710" y="655" width="125" height="58" class="box" />
+  <text x="772" y="689" text-anchor="middle" class="label">Caller</text>
+
+  <rect x="875" y="655" width="125" height="58" class="box" />
+  <text x="938" y="680" text-anchor="middle" class="label">Express API</text>
+  <text x="938" y="699" text-anchor="middle" class="small">no auth</text>
+
+  <rect x="1040" y="635" width="145" height="38" class="store" />
+  <text x="1112" y="659" text-anchor="middle" class="small">Mongo readyState</text>
+
+  <rect x="1040" y="685" width="145" height="38" class="store" />
+  <text x="1112" y="709" text-anchor="middle" class="small">Redis ping</text>
+
+  <rect x="1040" y="735" width="145" height="38" class="external" />
+  <text x="1112" y="759" text-anchor="middle" class="small">Provider config</text>
+
+  <path d="M835 684 H875" class="flow" />
+  <path d="M1000 684 H1020 V654 H1040" class="muted" />
+  <path d="M1000 684 H1040" class="muted" />
+  <path d="M1000 684 H1020 V754 H1040" class="muted" />
+  <text x="938" y="760" text-anchor="middle" class="small">Returns ok or degraded</text>
+</svg>
