@@ -6,6 +6,7 @@ import { createApp } from "../src/app.js";
 import { logger } from "../src/logger.js";
 import { ApiKeyModel } from "../src/models/ApiKey.js";
 import { AuditLogModel } from "../src/models/AuditLog.js";
+import type { EphemeralCanaryChallenge } from "../src/security/ephemeralCanary.js";
 import { hashApiKey, keyIdFor } from "../src/security/hash.js";
 import { decryptValue, encryptValue } from "../src/security/piiCrypto.js";
 import type { ChatMessage } from "../src/types.js";
@@ -14,10 +15,29 @@ const promptInjectionCases = fixtureCases.filter(
   (item) => item.category === "prompt_injection" && item.expectedBlocked !== false && item.input.trim().length > 0
 );
 
+const classicPromptInjectionCases = promptInjectionCases.filter((item) => {
+  if ("expectedThreatsClassic" in item && Array.isArray(item.expectedThreatsClassic)) {
+    return item.expectedThreatsClassic.length > 0;
+  }
+  return true;
+});
+
+const benignFixtureCases = fixtureCases.filter(
+  (item) => item.expectedBlocked === false && item.expectedStatus === 200 && item.input.trim().length > 0
+);
+
+const outputValidationCases = promptInjectionCases.filter((item) => item.expectedOutputValidation);
+
 type ChatCompletionParams = {
   model: string;
   messages: ChatMessage[];
   maxTokens: number;
+};
+
+type PromptGuardCompletionParams = {
+  model: string;
+  messages: ChatMessage[];
+  challenge: EphemeralCanaryChallenge;
 };
 
 const mockedConfig = vi.hoisted(() => ({
@@ -38,7 +58,9 @@ const mockedConfig = vi.hoisted(() => ({
 
 const providerMocks = vi.hoisted(() => ({
   createChatCompletion: vi.fn(async () => "safe response"),
-  createPromptGuardCompletion: vi.fn(async () => "ok")
+  createPromptGuardCompletion: vi.fn(
+    async (params: { challenge: { okReply: string } }) => params.challenge.okReply
+  )
 }));
 
 vi.mock("../src/models/ApiKey.js", () => ({
@@ -108,7 +130,9 @@ describe("app routes", () => {
     vi.spyOn(logger, "warn").mockImplementation(() => undefined);
     vi.spyOn(logger, "error").mockImplementation(() => undefined);
     providerMocks.createChatCompletion.mockResolvedValue("safe response");
-    providerMocks.createPromptGuardCompletion.mockResolvedValue("ok");
+    providerMocks.createPromptGuardCompletion.mockImplementation(
+      async (params: PromptGuardCompletionParams) => params.challenge.okReply
+    );
     vi.mocked(AuditLogModel.create).mockResolvedValue({} as never);
   });
 
@@ -196,7 +220,7 @@ describe("app routes", () => {
     expect(AuditLogModel.create).toHaveBeenCalledWith(expect.objectContaining({ status: "blocked" }));
   });
 
-  it.each(promptInjectionCases)("blocks and audits corpus prompt-injection entry $id", async (item) => {
+  it.each(classicPromptInjectionCases)("blocks and audits corpus prompt-injection entry $id", async (item) => {
     mockKey("client-key", "client");
     const app = createApp(redisMock() as never);
 
@@ -223,7 +247,7 @@ describe("app routes", () => {
     );
   });
 
-  it.each(promptInjectionCases)("blocks model echoes of corpus prompt-injection entry $id", async (item) => {
+  it.each(outputValidationCases)("blocks model echoes of corpus prompt-injection entry $id", async (item) => {
     mockKey("client-key", "client");
     providerMocks.createChatCompletion.mockResolvedValueOnce(item.input);
     const app = createApp(redisMock() as never);
@@ -393,7 +417,8 @@ Her ID is 123456782, mine is 987654321.`;
 
     expect(providerMocks.createPromptGuardCompletion).toHaveBeenCalledWith({
       model: "canary-test-model",
-      messages: [{ role: "user", content: "Hello" }]
+      messages: [{ role: "user", content: "Hello" }],
+      challenge: expect.objectContaining({ okReply: expect.stringMatching(/^ok:/) })
     });
     expect(providerMocks.createChatCompletion).toHaveBeenCalled();
     expect(logger.warn).not.toHaveBeenCalledWith(
@@ -433,7 +458,8 @@ Her ID is 123456782, mine is 987654321.`;
 
     expect(providerMocks.createPromptGuardCompletion).toHaveBeenCalledWith({
       model: "canary-test-model",
-      messages: [{ role: "user", content: "Hello" }]
+      messages: [{ role: "user", content: "Hello" }],
+      challenge: expect.objectContaining({ okReply: expect.stringMatching(/^ok:/) })
     });
     expect(providerMocks.createChatCompletion).toHaveBeenCalled();
   });
@@ -473,7 +499,8 @@ Her ID is 123456782, mine is 987654321.`;
 
     expect(providerMocks.createPromptGuardCompletion).toHaveBeenCalledWith({
       model: "canary-test-model",
-      messages: [{ role: "user", content: "Contact [PII_EMAIL_1] or [PII_PHONE_1]." }]
+      messages: [{ role: "user", content: "Contact [PII_EMAIL_1] or [PII_PHONE_1]." }],
+      challenge: expect.objectContaining({ okReply: expect.stringMatching(/^ok:/) })
     });
   });
 
@@ -526,14 +553,14 @@ Her ID is 123456782, mine is 987654321.`;
 
     expect(providerMocks.createPromptGuardCompletion).toHaveBeenCalledWith({
       model: "gpt-4o",
-      messages: [{ role: "user", content: "Hello" }]
+      messages: [{ role: "user", content: "Hello" }],
+      challenge: expect.objectContaining({ okReply: expect.stringMatching(/^ok:/) })
     });
   });
 
   it("logs incoming messages and canary output in llm_canary mode when debug logs are enabled", async () => {
     mockedConfig.INJECTION_DETECTION_MODE = "llm_canary";
     mockedConfig.LLM_CANARY_DEBUG_LOGS = true;
-    providerMocks.createPromptGuardCompletion.mockResolvedValue("ok");
     mockKey("client-key", "client");
     const app = createApp(redisMock() as never);
 
@@ -547,8 +574,12 @@ Her ID is 123456782, mine is 987654321.`;
       expect.objectContaining({
         correlationId: expect.any(String),
         model: "canary-test-model",
+        canaryProtocol: {
+          nonceHash: expect.any(String),
+          tripwireHash: expect.any(String)
+        },
         incomingMessages: [{ role: "user", content: "debug this message" }],
-        canaryOutput: "ok"
+        canaryOutput: expect.stringMatching(/^ok:/)
       }),
       "llm canary debug trace"
     );
@@ -576,6 +607,10 @@ Her ID is 123456782, mine is 987654321.`;
       expect.objectContaining({
         correlationId: expect.any(String),
         model: "canary-test-model",
+        canaryProtocol: {
+          nonceHash: expect.any(String),
+          tripwireHash: expect.any(String)
+        },
         incomingMessages: [{ role: "user", content: "debug empty canary" }],
         canaryError: "LLM canary provider returned an empty response"
       }),
@@ -586,7 +621,9 @@ Her ID is 123456782, mine is 987654321.`;
 
   it("blocks and audits chat when llm_canary classifies input as unsafe", async () => {
     mockedConfig.INJECTION_DETECTION_MODE = "llm_canary";
-    providerMocks.createPromptGuardCompletion.mockResolvedValue("block");
+    providerMocks.createPromptGuardCompletion.mockImplementation(
+      async (params: PromptGuardCompletionParams) => params.challenge.blockReply
+    );
     mockKey("client-key", "client");
     const app = createApp(redisMock() as never);
 
@@ -603,6 +640,43 @@ Her ID is 123456782, mine is 987654321.`;
     expect(AuditLogModel.create).toHaveBeenCalledWith(
       expect.objectContaining({ status: "blocked", detectedThreats: ["llm-canary-override"] })
     );
+  });
+
+  it.each(benignFixtureCases.slice(0, 12))("allows benign canary corpus entry $id", async (item) => {
+    mockedConfig.INJECTION_DETECTION_MODE = "llm_canary";
+    providerMocks.createPromptGuardCompletion.mockImplementation(
+      async (params: PromptGuardCompletionParams) => params.challenge.okReply
+    );
+    mockKey("client-key", "client");
+    const app = createApp(redisMock() as never);
+
+    await request(app)
+      .post("/v1/chat")
+      .set("x-api-key", "client-key")
+      .send({ model: "gpt-4o", messages: [{ role: "user", content: item.input }] })
+      .expect(200);
+
+    expect(providerMocks.createChatCompletion).toHaveBeenCalled();
+  });
+
+  it.each(promptInjectionCases.slice(0, 20))("blocks canary corpus attack entry $id", async (item) => {
+    mockedConfig.INJECTION_DETECTION_MODE = "llm_canary";
+    providerMocks.createPromptGuardCompletion.mockImplementation(
+      async (params: PromptGuardCompletionParams) => params.challenge.blockReply
+    );
+    mockKey("client-key", "client");
+    const app = createApp(redisMock() as never);
+
+    await request(app)
+      .post("/v1/chat")
+      .set("x-api-key", "client-key")
+      .send({ model: "gpt-4o", messages: [{ role: "user", content: item.input }] })
+      .expect(400)
+      .expect((res) => {
+        expect(res.body.threats).toEqual(["llm-canary-override"]);
+      });
+
+    expect(providerMocks.createChatCompletion).not.toHaveBeenCalled();
   });
 
   it("caps audit limit at 500 by validation", async () => {

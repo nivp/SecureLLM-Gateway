@@ -24,6 +24,7 @@ type AdversarialCase = {
 type CanaryTrace = {
   correlationId?: string;
   model?: string;
+  canaryProtocol?: { nonceHash?: string; tripwireHash?: string };
   incomingMessages?: Array<{ role: string; content: string }>;
   canaryOutput?: string;
   canaryError?: string;
@@ -72,6 +73,8 @@ const adminApiKey = process.env.LIVE_ADMIN_API_KEY ?? "admin-local-dev-key";
 const outputPath = process.env.ADVERSARIAL_REPORT_PATH ?? `adversarial-${mode}-report.html`;
 const jsonOutputPath = process.env.ADVERSARIAL_JSON_PATH ?? `.test-artifacts/adversarial-${mode}-results.json`;
 const includeBenignControl = process.env.ADVERSARIAL_INCLUDE_BENIGN !== "false";
+const showProgress = process.env.ADVERSARIAL_PROGRESS !== "false";
+const progressBarWidth = 28;
 
 function parseMode(value: string): DetectionMode {
   if (value === "classic" || value === "llm_canary") {
@@ -94,6 +97,10 @@ function normalizeCanaryOutput(value: string | undefined): string {
     .trim()
     .toLowerCase()
     .replace(/^['"`]+|['"`.!]+$/g, "");
+}
+
+function isNonceBoundCanaryOk(value: string | undefined): boolean {
+  return /^ok:[a-f0-9]{24}$/.test(normalizeCanaryOutput(value));
 }
 
 async function assertApiReachable(): Promise<void> {
@@ -239,8 +246,8 @@ function evaluateResult(params: {
     } else if (params.actualThreats.length === 0) {
       errors.push("Expected at least one response threat.");
     }
-  } else if (mode === "llm_canary" && normalizeCanaryOutput(params.trace?.canaryOutput) !== "ok") {
-    errors.push("Expected benign canary output to normalize to ok.");
+  } else if (mode === "llm_canary" && !isNonceBoundCanaryOk(params.trace?.canaryOutput)) {
+    errors.push("Expected benign canary output to be nonce-bound ok:<nonce>.");
   }
 
   if (params.testCase.expectedOutputValidation && params.outputValidationThreats.length === 0) {
@@ -299,6 +306,10 @@ function auditErrorsFor(expected: ReturnType<typeof expectedFor>, auditEntry: Au
 }
 
 function withBenignControl(cases: AdversarialCase[]): AdversarialCase[] {
+  if (cases.some((testCase) => testCase.expectedBlocked === false)) {
+    return cases;
+  }
+
   return [
     {
       id: "CONTROL-BENIGN",
@@ -313,6 +324,37 @@ function withBenignControl(cases: AdversarialCase[]): AdversarialCase[] {
     },
     ...cases
   ];
+}
+
+function updateProgress(params: { current: number; total: number; currentId?: string; results: CaseResult[] }): void {
+  if (!showProgress || params.total === 0) {
+    return;
+  }
+
+  const passed = params.results.filter((result) => result.passed && !result.skipped).length;
+  const failed = params.results.filter((result) => !result.passed && !result.skipped).length;
+  const skipped = params.results.filter((result) => result.skipped).length;
+  const ratio = params.current / params.total;
+  const filled = Math.round(ratio * progressBarWidth);
+  const bar = `${"#".repeat(filled)}${"-".repeat(progressBarWidth - filled)}`;
+  const percent = Math.round(ratio * 100)
+    .toString()
+    .padStart(3, " ");
+  const currentId = params.currentId ? ` ${params.currentId}` : "";
+  const line = `[${bar}] ${percent}% ${params.current}/${params.total} passed:${passed} failed:${failed} skipped:${skipped}${currentId}`;
+
+  if (process.stdout.isTTY) {
+    process.stdout.write(`\r${line.slice(0, process.stdout.columns ? process.stdout.columns - 1 : undefined)}`);
+    return;
+  }
+
+  console.log(line);
+}
+
+function finishProgress(): void {
+  if (showProgress && process.stdout.isTTY) {
+    process.stdout.write("\n");
+  }
 }
 
 function renderHtml(results: CaseResult[]): string {
@@ -423,7 +465,10 @@ async function main(): Promise<void> {
 
   const results: CaseResult[] = [];
 
-  for (const testCase of cases) {
+  updateProgress({ current: 0, total: cases.length, results });
+
+  for (const [index, testCase] of cases.entries()) {
+    updateProgress({ current: index, total: cases.length, currentId: testCase.id, results });
     const correlationId = `adversarial-${mode}-${testCase.id}-${Date.now()}`;
     const expected = expectedFor(testCase);
 
@@ -448,6 +493,7 @@ async function main(): Promise<void> {
         skipped: true,
         errors: ["Input is empty. Fill this case manually before running it."]
       });
+      updateProgress({ current: index + 1, total: cases.length, currentId: testCase.id, results });
       continue;
     }
 
@@ -509,8 +555,10 @@ async function main(): Promise<void> {
         errors: [error instanceof Error ? error.message : "unknown error"]
       });
     }
+    updateProgress({ current: index + 1, total: cases.length, currentId: testCase.id, results });
   }
 
+  finishProgress();
   mkdirSync(".test-artifacts", { recursive: true });
   writeFileSync(jsonOutputPath, JSON.stringify(results, null, 2));
   writeFileSync(outputPath, renderHtml(results));

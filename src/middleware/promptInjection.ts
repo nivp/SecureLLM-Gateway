@@ -3,6 +3,7 @@ import { sha256Json, writeAuditSafe } from "../audit.js";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { ProviderUnavailableError, createPromptGuardCompletion } from "../provider/openAiProvider.js";
+import { hashEphemeralCanaryValue } from "../security/ephemeralCanary.js";
 import { detectPromptInjection } from "../security/injectionDetector.js";
 import { detectPromptInjectionWithLlmCanary } from "../security/llmCanaryInjectionDetector.js";
 import type { Threat } from "../types.js";
@@ -15,12 +16,17 @@ export function promptInjectionMiddleware() {
 
     try {
       const detectWithCanary = async (): Promise<Threat[]> =>
-        detectPromptInjectionWithLlmCanary(messages, async (guardMessages) => {
+        detectPromptInjectionWithLlmCanary(messages, async (guardMessages, challenge) => {
           const canaryModel = config.OPENAI_CANARY_MODEL ?? req.validatedChat?.providerModel ?? "";
+          const canaryProtocol = {
+            nonceHash: hashEphemeralCanaryValue(challenge.nonce),
+            tripwireHash: hashEphemeralCanaryValue(challenge.tripwireMarker)
+          };
           try {
             const canaryOutput = await createPromptGuardCompletion({
               model: canaryModel,
-              messages: guardMessages
+              messages: guardMessages,
+              challenge
             });
 
             if (config.LLM_CANARY_DEBUG_LOGS) {
@@ -28,11 +34,13 @@ export function promptInjectionMiddleware() {
                 {
                   correlationId: req.id,
                   model: canaryModel,
+                  canaryProtocol,
                   incomingMessages: guardMessages,
                   canaryOutput,
                   canaryTrace: {
                     correlationId: req.id,
                     model: canaryModel,
+                    canaryProtocol,
                     incomingMessages: guardMessages,
                     canaryOutput
                   }
@@ -48,11 +56,13 @@ export function promptInjectionMiddleware() {
                 {
                   correlationId: req.id,
                   model: canaryModel,
+                  canaryProtocol,
                   incomingMessages: guardMessages,
                   canaryError: error instanceof Error ? error.message : "unknown_canary_error",
                   canaryTrace: {
                     correlationId: req.id,
                     model: canaryModel,
+                    canaryProtocol,
                     incomingMessages: guardMessages,
                     canaryError: error instanceof Error ? error.message : "unknown_canary_error"
                   }
