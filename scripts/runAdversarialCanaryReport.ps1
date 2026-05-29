@@ -2,7 +2,7 @@ param(
   [string]$ApiBaseUrl = "http://localhost:3000",
   [string]$ClientApiKey = "client-local-dev-key",
   [string]$AdminApiKey = "admin-local-dev-key",
-  [string]$Model = "gpt-oss:20b",
+  [string]$Model = "qwen3:4b-instruct",
   [string]$CasesFile = "test/fixtures/adversarial-cases.json",
   [string]$ReportPath = "adversarial-llm_canary-report.html",
   [switch]$SkipPull,
