@@ -20,7 +20,7 @@ With containers:
 docker compose up --build
 ```
 
-The compose file is intended for local/demo use. It publishes only the API on port 3000; MongoDB, Redis, and Ollama stay on the internal Compose network. The default local model alias points challenge model names to OpenAI's `gpt-oss:20b`, which is the GPT-OSS variant intended for higher-end consumer GPUs such as a 24 GB RTX 3090. Pull it before using live chat:
+The compose file is intended for local/demo use. It publishes the API on port 3000 and Ollama on port 11434; MongoDB and Redis stay on the internal Compose network. Ollama runs in Docker with an NVIDIA GPU reservation, so NVIDIA GPU hosts need the NVIDIA Container Toolkit installed. The default local model alias points challenge model names to OpenAI's `gpt-oss:20b`, which is the GPT-OSS variant intended for higher-end consumer GPUs such as a 24 GB RTX 3090. Pull it before using live chat:
 
 ```bash
 docker compose exec ollama ollama pull gpt-oss:20b
@@ -122,7 +122,7 @@ Audit logging records timestamp, API-key ID when available, model when available
 
 Secrets handling keeps provider keys and demo API keys in env vars only. `.gitleaks.toml` includes rules for common LLM and cloud secret formats.
 
-Container hardening runs the Node.js runtime container as the non-root `node` user. The local Compose file does not publish MongoDB, Redis, or Ollama to the host.
+Container hardening runs the Node.js runtime container as the non-root `node` user. The local Compose file does not publish MongoDB or Redis to the host. It publishes Ollama on `localhost:11434` so host-side comparison scripts can benchmark direct provider calls against the same Docker model backend.
 
 ## Appendix Fixture
 
@@ -242,6 +242,20 @@ npx tsx scripts/runAdversarialCases.ts
 ```
 
 For the classic script, `-Model` is the chat model pulled for the benign control. For the canary script, `-Model` is also assigned to `OPENAI_CANARY_MODEL` before Compose starts the API.
+
+To compare gateway performance against direct provider calls:
+
+```bash
+npm run compare:gateway
+```
+
+This starts Compose, pulls the model inside the Docker Ollama container, maps the gateway's public `gpt-4o` alias to that model, seeds a benchmark-only client key with a high rate limit, then sends each adversarial fixture case through `/v1/chat` and directly to the same OpenAI-compatible Ollama container through `localhost:11434`. It writes `gateway-comparison-report.html` plus `.test-artifacts/gateway-comparison-results.json` with gateway/direct latency, median and p95 timings, overhead, benign allow rate, attack block rate, direct-baseline response rate, and whether the unprotected direct LLM followed trap markers such as forced `ok`, nonce replies, prompt leakage, jailbreak prefixes, or unsafe echoed output. Gateway success is measured by server enforcement; canary replies that are malformed, unsafe, or manipulated are expected to fail closed rather than pass the request.
+
+Optional parameters:
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts/runGatewayComparisonReport.ps1 -Model qwen3:4b-instruct -ProviderBaseUrl http://127.0.0.1:11434/v1 -Runs 3 -Concurrency 1 -ClientRateLimitPerMinute 10000 -SkipPull -NoBuild
+```
 
 ## Known Limitations
 

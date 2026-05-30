@@ -21,6 +21,9 @@ function Invoke-Step {
   Write-Host "==> $Name" -ForegroundColor Cyan
   & $Command
   if ($LASTEXITCODE -ne 0) {
+    if ($Name -like "*Ollama*") {
+      throw "Step failed with exit code $LASTEXITCODE`: $Name. Docker Ollama GPU mode requires the NVIDIA Container Toolkit on the host and an available GPU runtime."
+    }
     throw "Step failed with exit code $LASTEXITCODE`: $Name"
   }
 }
@@ -50,8 +53,12 @@ try {
   }
 
   if (-not $SkipPull) {
-    Invoke-Step "Ensuring Ollama model is available: $Model" {
+    Invoke-Step "Ensuring Docker Ollama model is available: $Model" {
       docker compose exec ollama ollama pull $Model
+    }
+  } else {
+    Invoke-Step "Checking Docker Ollama is reachable" {
+      docker compose exec ollama ollama --version
     }
   }
 

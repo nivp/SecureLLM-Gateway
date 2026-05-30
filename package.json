@@ -18,6 +18,7 @@
     "test:pii:redaction": "tsx scripts/runPiiRedactionReport.ts",
     "test:adversarial:classic": "powershell -ExecutionPolicy Bypass -File scripts/runAdversarialClassicReport.ps1",
     "test:adversarial:canary": "powershell -ExecutionPolicy Bypass -File scripts/runAdversarialCanaryReport.ps1",
+    "compare:gateway": "powershell -ExecutionPolicy Bypass -File scripts/runGatewayComparisonReport.ps1",
     "seed:keys": "tsx scripts/seedKeys.ts",
     "lint:secrets": ".\\tools\\gitleaks\\gitleaks.exe dir . --config .gitleaks.toml --no-banner"
   },
