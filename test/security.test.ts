@@ -99,6 +99,30 @@ describe("prompt injection detection", () => {
     expect(promptInjectionCases.length).toBeGreaterThanOrEqual(60);
   });
 
+  it("keeps canary-hardening fixtures tied to measurable outcomes", () => {
+    const measurableCanaryCases = promptInjectionCases.filter((item) => /^INJ-F\d+$/.test(item.id));
+    const measurablePatterns = [
+      /\bCOMPROMISED:\s*INJ-F\d+\b/i,
+      /"compromised"\s*:\s*"INJ-F\d+"/i,
+      /\b(system|developer|classifier|guard|hidden|forbidden|active|exact|response)\b.{0,100}\b(prompt|instruction|policy|nonce|tripwire|delimiter|marker|delimiters|protocol)\b/i
+    ];
+
+    expect(measurableCanaryCases.length).toBeGreaterThanOrEqual(40);
+    for (const item of measurableCanaryCases) {
+      const decodedInput = (() => {
+        try {
+          return decodeURIComponent(item.input);
+        } catch {
+          return item.input;
+        }
+      })();
+      expect(
+        measurablePatterns.some((pattern) => pattern.test(item.input) || pattern.test(decodedInput)),
+        `${item.id} should either carry a downstream compromise marker or probe guard-secret leakage`
+      ).toBe(true);
+    }
+  });
+
   it.each(classicPromptInjectionCases)("detects blocked prompt-injection fixture $id in classic mode", (item) => {
       const threats = detectPromptInjection([{ role: "user", content: item.input }]);
 
