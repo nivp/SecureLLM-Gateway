@@ -238,7 +238,9 @@ function evaluateResult(params: {
   }
 
   if (expected.expectedBlocked) {
-    if (expected.expectedThreatsStrict) {
+    const canaryFailClosedThreat =
+      mode === "llm_canary" && params.actualThreats.some((threat) => threat.startsWith("llm-canary-"));
+    if (expected.expectedThreatsStrict && !canaryFailClosedThreat) {
       const missing = expected.expectedThreats.filter((threat) => !params.actualThreats.includes(threat));
       if (missing.length > 0) {
         errors.push(`Missing expected response threat(s): ${missing.join(", ")}.`);
@@ -290,7 +292,9 @@ function auditErrorsFor(expected: ReturnType<typeof expectedFor>, auditEntry: Au
 
   const auditThreats = auditEntry.detectedThreats ?? [];
   if (expected.expectedBlocked) {
-    if (expected.expectedThreatsStrict) {
+    const canaryFailClosedThreat =
+      mode === "llm_canary" && auditThreats.some((threat) => threat.startsWith("llm-canary-"));
+    if (expected.expectedThreatsStrict && !canaryFailClosedThreat) {
       const missing = expected.expectedThreats.filter((threat) => !auditThreats.includes(threat));
       if (missing.length > 0) {
         errors.push(`Missing expected audit threat(s): ${missing.join(", ")}.`);

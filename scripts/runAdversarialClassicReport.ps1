@@ -2,6 +2,8 @@ param(
   [string]$ApiBaseUrl = "http://localhost:3000",
   [string]$ClientApiKey = "client-local-dev-key",
   [string]$AdminApiKey = "admin-local-dev-key",
+  [int]$ClientRateLimitPerMinute = 10000,
+  [int]$AdminRateLimitPerMinute = 10000,
   [string]$Model = "gpt-oss:20b",
   [string]$CasesFile = "test/fixtures/adversarial-cases.json",
   [string]$ReportPath = "adversarial-classic-report.html",
@@ -59,7 +61,9 @@ try {
   Invoke-Step "Seeding local API keys" {
     docker compose exec `
       -e CLIENT_API_KEY=$ClientApiKey `
+      -e CLIENT_RATE_LIMIT_PER_MINUTE=$ClientRateLimitPerMinute `
       -e ADMIN_API_KEY=$AdminApiKey `
+      -e ADMIN_RATE_LIMIT_PER_MINUTE=$AdminRateLimitPerMinute `
       api node dist/scripts/seedKeys.js
   }
 
